@@ -150,23 +150,111 @@ export function StudentDashboard() {
         let currentStudent: Student | null = null;
         const activeUid = user?.identifier || (typeof window !== 'undefined' ? localStorage.getItem('madrasa_active_uid') : null);
 
-        if (localDb?.students) {
-          const students = await localDb.students.where('status').equals('active').toArray();
-          if (activeUid && students.length > 0) {
-            const cleanUid = activeUid.toLowerCase().trim();
-            const found = students.find((s) => {
-              const adm = (s.admissionNo || s.id || '').toLowerCase();
-              const roll = String(s.rollNo || '').toLowerCase();
-              const phone = (s.phone || '').trim();
-              return adm === cleanUid || adm.includes(cleanUid) || roll === cleanUid || phone === cleanUid;
-            });
-            if (found) currentStudent = found;
+        const cleanUid = String(activeUid || '').toLowerCase().trim();
+        const onlyDigits = cleanUid.replace(/\D/g, '');
+        const uPhone = String(user?.phone || '').trim();
+        const uEmail = String(user?.email || '').trim().toLowerCase();
+        const authUserId = String(user?.id || '').trim().toLowerCase();
+
+        // টিচার ড্যাশবোর্ডের মতো মাল্টি-ক্রাইটেরিয়া স্টুডেন্ট ম্যাচিং লজিক
+        const isStudentMatch = (rec: any) => {
+          const rId = String(rec.id || '').toLowerCase().trim();
+          const rAdm = String(rec.admission_no || rec.admissionNo || rec.id || '').toLowerCase().trim();
+          const rRoll = String(rec.roll || rec.roll_no || rec.rollNo || '').toLowerCase().trim();
+          const rPhone = String(rec.phone || '').trim();
+          const rEmail = String(rec.email || '').toLowerCase().trim();
+
+          return (
+            (authUserId && (rId === authUserId || rAdm === authUserId)) ||
+            (cleanUid && (rId === cleanUid || rAdm === cleanUid || rRoll === cleanUid || rId.includes(cleanUid) || rAdm.includes(cleanUid))) ||
+            (onlyDigits && (rId.endsWith(onlyDigits) || rAdm.endsWith(onlyDigits) || rRoll === onlyDigits)) ||
+            (uPhone && rPhone === uPhone) ||
+            (uEmail && rEmail === uEmail)
+          );
+        };
+
+        const mapStudentData = (raw: any): Student => ({
+          id: String(raw.id || raw.admission_no || raw.admissionNo || cleanUid),
+          admissionNo: String(raw.admission_no || raw.admissionNo || raw.id || cleanUid),
+          fullName: raw.full_name || raw.fullName || raw.name || user?.name || 'শিক্ষার্থী',
+          fullNameBangla: raw.full_name_bangla || raw.fullNameBangla || raw.full_name || raw.name || user?.name || 'শিক্ষার্থী',
+          fatherName: raw.father_name || raw.fatherName || 'তথ্য নেই',
+          className: raw.class_name || raw.className || user?.extraData?.className || 'হিফজুল কুরআন',
+          rollNo: String(raw.roll || raw.roll_no || raw.rollNo || user?.extraData?.rollNo || '০১'),
+          phone: raw.phone || user?.phone || '',
+          photoUrl: raw.photo_url || raw.photoUrl || user?.avatarUrl || '',
+          status: (raw.status as any) || 'active',
+          monthlyFee: Number(raw.monthly_fee || raw.monthlyFee || 1000),
+          createdAt: raw.created_at || raw.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+
+        // (ক) Supabase Cloud - students টেবিলে সন্ধান
+        try {
+          const { data: supaStudents } = await supabase.from('students').select('*');
+          if (supaStudents && supaStudents.length > 0) {
+            const found = supaStudents.find(isStudentMatch);
+            if (found) currentStudent = mapStudentData(found);
           }
-          if (!currentStudent && students.length > 0) {
-            currentStudent = students[0];
-          }
-          setStudent(currentStudent);
+        } catch (e) {}
+
+        // (খ) Supabase Cloud - profiles টেবিলে সন্ধান
+        if (!currentStudent && user?.id) {
+          try {
+            const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+            if (profile) {
+              const pIdentifier = String(profile.identifier || '').trim().toLowerCase();
+              if (pIdentifier) {
+                const { data: supaStudents } = await supabase.from('students').select('*');
+                if (supaStudents && supaStudents.length > 0) {
+                  const found = supaStudents.find((s: any) => {
+                    const sId = String(s.id || s.admission_no || '').trim().toLowerCase();
+                    return sId === pIdentifier || sId.includes(pIdentifier);
+                  });
+                  if (found) currentStudent = mapStudentData(found);
+                }
+              }
+            }
+          } catch (e) {}
         }
+
+        // (গ) LocalDb - students টেবিলে সন্ধান
+        if (!currentStudent && localDb?.students) {
+          try {
+            const allLocalStudents = await localDb.students.toArray();
+            if (allLocalStudents.length > 0) {
+              const found = allLocalStudents.find(isStudentMatch);
+              if (found) currentStudent = mapStudentData(found);
+            }
+          } catch (e) {}
+        }
+
+        // (ঘ) যদি কোথাও না পাওয়া যায় -> Auth User সেশন থেকে Fallback Student রেকর্ড তৈরি
+        if (!currentStudent && (user || activeUid)) {
+          currentStudent = {
+            id: user?.identifier || activeUid || 'STU-101',
+            admissionNo: user?.identifier || activeUid || 'STU-101',
+            fullName: user?.name || 'শিক্ষার্থী',
+            fullNameBangla: user?.name || 'শিক্ষার্থী',
+            fatherName: 'তথ্য আপডেট করা হচ্ছে',
+            className: user?.extraData?.className || 'হিফজুল কুরআন',
+            rollNo: user?.extraData?.rollNo || '০১',
+            phone: user?.phone || '',
+            photoUrl: user?.avatarUrl || '',
+            status: 'active',
+            monthlyFee: 1000,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+        }
+
+        if (currentStudent && localDb?.students) {
+          try {
+            await localDb.students.put(currentStudent);
+          } catch (e) {}
+        }
+
+        setStudent(currentStudent);
 
         const activeStudentId = currentStudent?.admissionNo || currentStudent?.id || 'ADM-2026-089';
         const activeClassName = currentStudent?.className || 'হিফজুল কুরআন';
@@ -424,23 +512,30 @@ export function StudentDashboard() {
     };
 
     loadStudentData();
-  }, [todayStr, currentMonthISO]);
+  }, [todayStr, currentMonthISO, user, user?.identifier]);
 
-  const displayStudent: Student = student || {
-    id: 'std_demo',
-    admissionNo: 'ADM-2026-089',
-    fullName: 'Abdullah Mahmud',
-    fullNameBangla: 'আব্দুল্লাহ মাহমুদ',
-    className: 'হিফজুল কুরআন',
-    section: '',
-    rollNo: '০১',
-    fatherName: 'মাওলানা আব্দুর রহমান',
-    phone: '01712-345678',
-    monthlyFee: 1500,
-    status: 'active' as const,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const displayStudent: Student = useMemo(() => {
+    if (student) return student;
+
+    const activeUid = user?.identifier || (typeof window !== 'undefined' ? localStorage.getItem('madrasa_active_uid') : null);
+
+    return {
+      id: activeUid || 'STU-101',
+      admissionNo: activeUid || 'STU-101',
+      fullName: user?.name || 'শিক্ষার্থী',
+      fullNameBangla: user?.name || 'শিক্ষার্থী',
+      className: user?.extraData?.className || 'হিফজুল কুরআন',
+      section: '',
+      rollNo: user?.extraData?.rollNo || '০১',
+      fatherName: 'তথ্য আপডেট করা হচ্ছে',
+      phone: user?.phone || '',
+      photoUrl: user?.avatarUrl || '',
+      monthlyFee: 1000,
+      status: 'active' as const,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }, [student, user]);
 
   const studentFormattedName = useMemo(() => {
     const raw = displayStudent.fullNameBangla || displayStudent.fullName || 'আব্দুল্লাহ মাহমুদ';
