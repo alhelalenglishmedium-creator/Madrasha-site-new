@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, supabaseAnon } from '@/lib/supabaseClient';
 import { localDb } from '@/db/localDb';
+import { INSTITUTIONS } from '@/lib/constants';
 import { Browser } from '@capacitor/browser';
 import { App as CapacitorApp } from '@capacitor/app';
 
@@ -337,6 +338,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 dbOfficialName = matched.name || matched.full_name_bangla || matched.full_name || dbOfficialName;
                 dbOfficialPhoto = matched.photo_url || matched.photoUrl || dbOfficialPhoto;
                 dbOfficialPhone = matched.phone || dbOfficialPhone;
+
+                const instType = matched.institution_type || matched.institutionType;
+                if (instType && typeof window !== 'undefined') {
+                  const instMatch = INSTITUTIONS.find((i) => i.type === instType);
+                  if (instMatch) {
+                    localStorage.setItem('selected_institution', JSON.stringify(instMatch));
+                  }
+                }
               }
             }
           } catch (e) {}
@@ -623,6 +632,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         const verifiedId = String(studentMatch.id || studentMatch.admission_no || studentMatch.admissionNo || rawInput).trim();
+
+        // স্টুডেন্টের নির্দিষ্ট প্রতিষ্ঠান টাইপ থাকলে তা লোকালস্টোরেজে সিঙ্ক করা
+        const stdInstType = studentMatch.institution_type || studentMatch.institutionType;
+        if (stdInstType && typeof window !== 'undefined') {
+          const instMatch = INSTITUTIONS.find((i) => i.type === stdInstType);
+          if (instMatch) {
+            localStorage.setItem('selected_institution', JSON.stringify(instMatch));
+          }
+        }
+
         const officialName = String(
           studentMatch.name ||
           studentMatch.full_name_bangla ||
