@@ -11,7 +11,11 @@ import {
   Users,
 } from 'lucide-react';
 
-export function AdminBottomNav() {
+interface AdminBottomNavProps {
+  activeTab?: string;
+}
+
+export function AdminBottomNav({ activeTab }: AdminBottomNavProps = {}) {
   const pathname = usePathname();
 
   const navItems = [
