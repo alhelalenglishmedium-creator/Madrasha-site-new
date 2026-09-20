@@ -25,6 +25,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useInstitution } from '@/context/InstitutionContext';
 import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
 import type { Student, AttendanceRecord } from '@/types/database.types';
@@ -89,6 +90,7 @@ function formatBengaliPosition(pos: number): string {
 
 export function StudentDashboard() {
   const { user, logout } = useAuth?.() || { user: null, logout: () => {} };
+  const { setInstitutionByType } = useInstitution();
   const [activeTab, setActiveTab] = useState<StudentTab>('home');
   const [student, setStudent] = useState<Student | null>(null);
 
@@ -178,6 +180,7 @@ export function StudentDashboard() {
           admissionNo: String(raw.admission_no || raw.admissionNo || raw.id || cleanUid),
           fullName: raw.full_name || raw.fullName || raw.name || user?.name || 'শিক্ষার্থী',
           fullNameBangla: raw.full_name_bangla || raw.fullNameBangla || raw.full_name || raw.name || user?.name || 'শিক্ষার্থী',
+          institutionType: raw.institution_type || raw.institutionType || 'madrasa',
           fatherName: raw.father_name || raw.fatherName || 'তথ্য নেই',
           className: raw.class_name || raw.className || user?.extraData?.className || 'হিফজুল কুরআন',
           rollNo: String(raw.roll || raw.roll_no || raw.rollNo || user?.extraData?.rollNo || '০১'),
@@ -255,6 +258,10 @@ export function StudentDashboard() {
         }
 
         setStudent(currentStudent);
+
+        if (currentStudent && currentStudent.institutionType) {
+          setInstitutionByType(currentStudent.institutionType);
+        }
 
         const activeStudentId = currentStudent?.admissionNo || currentStudent?.id || 'ADM-2026-089';
         const activeClassName = currentStudent?.className || 'হিফজুল কুরআন';
