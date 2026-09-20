@@ -15,8 +15,9 @@ import {
   IdCard,
   Sparkles,
   Phone,
+  Building2,
 } from 'lucide-react';
-import type { Student, GuardianContact } from '@/types/database.types';
+import type { Student, GuardianContact, InstitutionType } from '@/types/database.types';
 import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -28,8 +29,35 @@ interface StudentFormModalProps {
   initialData?: Student | null;
 }
 
-const DEFAULT_CLASSES = ['প্লে', 'নার্সারি', 'হিফজ'];
-const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+export const INSTITUTION_OPTIONS: { id: InstitutionType; name: string; shortName: string; icon: string }[] = [
+  { id: 'madrasa', name: 'মাদ্রাসা (কওমি ও হিফজ)', shortName: 'মাদ্রাসা', icon: '🕌' },
+  { id: 'school', name: 'আল হেলাল স্কুল', shortName: 'স্কুল', icon: '🏫' },
+  { id: 'mohila_madrasa', name: 'মহিলা কওমি মাদ্রাসা', shortName: 'মহিলা মাদ্রাসা', icon: '🧕' },
+];
+
+export const DEFAULT_CLASSES_BY_INSTITUTION: Record<InstitutionType, string[]> = {
+  madrasa: ['প্লে', 'নার্সারি', 'ইবতেদায়ী', 'হিফজুল কুরআন', 'নাজেরা', 'কিতাব বিভাগ', 'মিশকাত', 'দাওরায়ে হাদিস'],
+  school: ['প্লে', 'নার্সারি', 'কেজি', 'ক্লাস ১', 'ক্লাস ২', 'ক্লাস ৩', 'ক্লাস ৪', 'ক্লাস ৫', 'ক্লাস ৬', 'ক্লাস ৭', 'ক্লাস ৮', 'ক্লাস ৯', 'ক্লাস ১০'],
+  mohila_madrasa: ['প্লে', 'নার্সারি', 'মহিলা হিফজ শাখা', 'মহিলা কিতাব শাখা'],
+};
+
+// প্রতিষ্ঠান অনুযায়ী শ্রেণি তালিকা তৈরির হেল্পার
+const getClassesForInstitution = (instType: InstitutionType): string[] => {
+  const baseClasses = DEFAULT_CLASSES_BY_INSTITUTION[instType] || DEFAULT_CLASSES_BY_INSTITUTION['madrasa'];
+  if (typeof window !== 'undefined') {
+    const savedClasses = localStorage.getItem('madrasa_custom_classes');
+    if (savedClasses) {
+      try {
+        const parsed = JSON.parse(savedClasses);
+        if (Array.isArray(parsed)) {
+          const extra = parsed.filter((c) => typeof c === 'string' && !baseClasses.includes(c));
+          return [...baseClasses, ...extra];
+        }
+      } catch (e) {}
+    }
+  }
+  return baseClasses;
+};
 
 export function StudentFormModal({
   isOpen,
@@ -40,7 +68,7 @@ export function StudentFormModal({
 }: StudentFormModalProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [classList, setClassList] = useState<string[]>(DEFAULT_CLASSES);
+  const [classList, setClassList] = useState<string[]>([]);
   const [isAddingClass, setIsAddingClass] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [studentUid, setStudentUid] = useState<string>('');
@@ -48,6 +76,7 @@ export function StudentFormModal({
   const [formData, setFormData] = useState({
     fullName: '',
     fullNameBangla: '',
+    institutionType: 'madrasa' as InstitutionType,
     className: 'প্লে',
     rollNo: '',
     fatherName: '',
@@ -65,20 +94,22 @@ export function StudentFormModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // সংরক্ষিত শ্রেণি তালিকা লোড
-  useEffect(() => {
-    const savedClasses = localStorage.getItem('madrasa_custom_classes');
-    if (savedClasses) {
-      try {
-        const parsed = JSON.parse(savedClasses);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setClassList(parsed);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, []);
+  // প্রতিষ্ঠান পরিবর্তন হলে শ্রেণি তালিকা আপডেট
+  const handleInstitutionChange = (newInstType: InstitutionType) => {
+    const availableClasses = getClassesForInstitution(newInstType);
+    setClassList(availableClasses);
+
+    // বর্তমান সিলেক্টেড ক্লাস যদি নতুন লিস্টে না থাকে, তবে ১ম ক্লাস সেট হবে
+    const nextClass = availableClasses.includes(formData.className)
+      ? formData.className
+      : (availableClasses[0] || 'প্লে');
+
+    setFormData((prev) => ({
+      ...prev,
+      institutionType: newInstType,
+      className: nextClass,
+    }));
+  };
 
   // নতুন শ্রেণি তৈরি
   const handleAddNewClass = () => {
@@ -87,7 +118,19 @@ export function StudentFormModal({
     if (!classList.includes(trimmed)) {
       const updated = [...classList, trimmed];
       setClassList(updated);
-      localStorage.setItem('madrasa_custom_classes', JSON.stringify(updated));
+
+      // লোকালস্টোরেজে কাস্টম ক্লাস সেভ
+      if (typeof window !== 'undefined') {
+        const savedClasses = localStorage.getItem('madrasa_custom_classes');
+        let existing: string[] = [];
+        if (savedClasses) {
+          try { existing = JSON.parse(savedClasses); } catch (e) {}
+        }
+        if (!existing.includes(trimmed)) {
+          localStorage.setItem('madrasa_custom_classes', JSON.stringify([...existing, trimmed]));
+        }
+      }
+
       setFormData((prev) => ({ ...prev, className: trimmed }));
     }
     setNewClassName('');
@@ -130,7 +173,7 @@ export function StudentFormModal({
     });
   };
 
-  // ফর্ম ডাটা সেট
+  // ফর্ম ডাটা ও ইনিশিয়াল ডাটা লোড
   useEffect(() => {
     if (initialData) {
       const existingContacts: GuardianContact[] =
@@ -140,11 +183,16 @@ export function StudentFormModal({
               ? [{ id: 'c_1', title: 'অভিভাবক', phone: initialData.phone }]
               : [{ id: 'c_1', title: 'বাবা', phone: '' }]);
 
+      const instType = initialData.institutionType || 'madrasa';
+      const availableClasses = getClassesForInstitution(instType);
+      setClassList(availableClasses);
+
       setStudentUid(initialData.admissionNo || initialData.id || '');
       setFormData({
         fullName: initialData.fullName || '',
         fullNameBangla: initialData.fullNameBangla || '',
-        className: initialData.className || (classList[0] || 'প্লে'),
+        institutionType: instType,
+        className: initialData.className || (availableClasses[0] || 'প্লে'),
         rollNo: initialData.rollNo || '',
         fatherName: initialData.fatherName || '',
         phone: initialData.phone || (existingContacts[0]?.phone || ''),
@@ -156,11 +204,16 @@ export function StudentFormModal({
         status: (initialData.status as any) || 'active',
       });
     } else {
+      const defaultInst: InstitutionType = 'madrasa';
+      const availableClasses = getClassesForInstitution(defaultInst);
+      setClassList(availableClasses);
+
       setStudentUid('');
       setFormData({
         fullName: '',
         fullNameBangla: '',
-        className: classList[0] || 'প্লে',
+        institutionType: defaultInst,
+        className: availableClasses[0] || 'প্লে',
         rollNo: '',
         fatherName: '',
         phone: '',
@@ -175,7 +228,7 @@ export function StudentFormModal({
     setIsAddingClass(false);
     setNewClassName('');
     setErrorMessage('');
-  }, [initialData, isOpen, classList]);
+  }, [initialData, isOpen]);
 
   if (!isOpen) return null;
 
@@ -197,7 +250,6 @@ export function StudentFormModal({
       const fileName = `std_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.${fileExt}`;
       const filePath = `students/${fileName}`;
 
-      // ১. সুপাবেসের 'madrasha' বাকেটে আপলোড
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('madrasha')
         .upload(filePath, file, {
@@ -207,7 +259,6 @@ export function StudentFormModal({
 
       if (uploadError) {
         console.warn('সুপাবেস স্টোরেজ সতর্কতা:', uploadError.message);
-        // অফলাইনে থাকলে বা কোনো এরর হলে Base64 ব্যাকআপ
         const reader = new FileReader();
         reader.onloadend = () => {
           setFormData((prev) => ({
@@ -217,7 +268,6 @@ export function StudentFormModal({
         };
         reader.readAsDataURL(file);
       } else {
-        // সুপাবেসের পাবলিক লিঙ্ক নিয়ে সেট করা
         const { data: publicUrlData } = supabase.storage
           .from('madrasha')
           .getPublicUrl(filePath);
@@ -302,7 +352,7 @@ export function StudentFormModal({
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-3 sm:p-4 font-hind animate-in fade-in duration-200">
       
       {/* মূল মোডাল বক্স */}
-      <div className="relative max-h-[85vh] w-full max-w-[370px] flex flex-col rounded-[28px] bg-[#F7FBF9] shadow-2xl border border-[#DFECE5] overflow-hidden">
+      <div className="relative max-h-[88vh] w-full max-w-[390px] flex flex-col rounded-[28px] bg-[#F7FBF9] shadow-2xl border border-[#DFECE5] overflow-hidden">
         
         {/* টপ হেডার বার */}
         <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-[#E7F0EB] bg-[#F7FBF9]">
@@ -397,6 +447,35 @@ export function StudentFormModal({
             </div>
           </div>
 
+          {/* ১. প্রতিষ্ঠান / শাখা নির্বাচন (Institution Selector) */}
+          <div className="bg-white border border-[#D9E7E0] p-2.5 rounded-2xl shadow-2xs space-y-1.5">
+            <label className="text-[10px] font-bold text-[#374151] flex items-center gap-1">
+              <Building2 size={13} className="text-[#008955]" />
+              <span>প্রতিষ্ঠান / শাখা নির্বাচন করুন *</span>
+            </label>
+
+            <div className="grid grid-cols-3 gap-1.5">
+              {INSTITUTION_OPTIONS.map((opt) => {
+                const isSelected = formData.institutionType === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => handleInstitutionChange(opt.id)}
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition active:scale-95 ${
+                      isSelected
+                        ? 'bg-[#E7F6ED] border-[#008955] text-[#008955] ring-1 ring-[#008955]'
+                        : 'bg-white border-[#E1EDE6] text-[#4B5563] hover:bg-[#F9FAFB]'
+                    }`}
+                  >
+                    <span className="text-base mb-0.5">{opt.icon}</span>
+                    <span className="text-[10px] font-bold leading-tight">{opt.shortName}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* নাম */}
           <div className="space-y-2">
             <div>
@@ -427,20 +506,20 @@ export function StudentFormModal({
             </div>
           </div>
 
-          {/* শিক্ষার্থী UID (স্মার্ট আইডি - সম্পূর্ণ ফ্লেক্সিবল) */}
+          {/* শিক্ষার্থী UID (স্মার্ট আইডি) */}
           <div className="bg-white border border-[#D9E7E0] p-2.5 rounded-2xl shadow-2xs space-y-1">
             <div className="flex items-center justify-between px-1">
               <label className="text-[10px] font-bold text-[#374151] flex items-center gap-1">
                 <IdCard size={13} className="text-[#008955]" />
                 <span>শিক্ষার্থী UID (স্মার্ট আইডি)</span>
               </label>
-              <span className="text-[9px] text-[#008955] font-semibold">লগইন আইডি (যেকোনো ভ্যালু)</span>
+              <span className="text-[9px] text-[#008955] font-semibold">লগইন আইডি</span>
             </div>
 
             <div className="flex items-center gap-1.5">
               <input
                 type="text"
-                placeholder="যেমন: 101, S-101, 202601 বা আপনার মনমতো ভ্যালু"
+                placeholder="যেমন: 101, S-101, 202601"
                 value={studentUid}
                 onChange={(e) => setStudentUid(e.target.value)}
                 className="flex-1 rounded-xl border border-[#BBE3D3] bg-[#E7F6ED] px-3 py-1.5 text-xs font-black font-sans text-[#008955] focus:border-[#008955] focus:bg-white focus:outline-none transition shadow-2xs"
@@ -448,7 +527,6 @@ export function StudentFormModal({
               <button
                 type="button"
                 onClick={() => {
-                  const roll = formData.rollNo ? String(formData.rollNo).padStart(2, '0') : '01';
                   setStudentUid(`S-${Math.floor(100 + Math.random() * 900)}`);
                 }}
                 className="px-2.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-[11px] font-bold flex items-center gap-1 transition active:scale-95 shrink-0"
@@ -460,7 +538,7 @@ export function StudentFormModal({
             </div>
           </div>
 
-          {/* শ্রেণি */}
+          {/* ২. ডায়নামিক শ্রেণি নির্বাচন (Dynamic Class List) */}
           <div>
             <div className="flex items-center justify-between px-1 mb-0.5">
               <label className="text-[10px] font-bold text-[#374151]">
@@ -503,7 +581,7 @@ export function StudentFormModal({
             >
               {classList.map((cls) => (
                 <option key={cls} value={cls}>
-                  {cls} বিভাগ
+                  {cls}
                 </option>
               ))}
             </select>
@@ -535,7 +613,7 @@ export function StudentFormModal({
                 className="w-full rounded-xl border border-[#D9E7E0] bg-white px-3 py-1.5 text-xs font-bold text-rose-600 focus:border-[#008955] focus:outline-none shadow-2xs cursor-pointer"
               >
                 <option value="">নির্বাচন করুন</option>
-                {BLOOD_GROUPS.map((bg) => (
+                {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map((bg) => (
                   <option key={bg} value={bg}>
                     {bg}
                   </option>
@@ -558,7 +636,7 @@ export function StudentFormModal({
             />
           </div>
 
-          {/* একাধিক অভিভাবকের ডায়নামিক মোবাইল নম্বর */}
+          {/* একাধিক অভিভাবকের মোবাইল নম্বর */}
           <div className="bg-white border border-[#D9E7E0] p-2.5 rounded-2xl shadow-2xs space-y-2">
             <div className="flex items-center justify-between px-1">
               <label className="text-[10px] font-bold text-[#374151] flex items-center gap-1">
@@ -571,7 +649,7 @@ export function StudentFormModal({
                 className="inline-flex items-center gap-1 text-[9px] font-bold text-[#008955] bg-[#E7F6ED] border border-[#BBE3D3] px-2 py-0.5 rounded-full hover:bg-[#D4EFE0] transition active:scale-95"
               >
                 <Plus size={10} />
-                <span>নতুন নম্বর (Add)</span>
+                <span>নতুন নম্বর</span>
               </button>
             </div>
 
@@ -581,7 +659,6 @@ export function StudentFormModal({
                   key={contact.id || index}
                   className="flex items-center gap-1.5 bg-[#F7FBF9] p-1.5 rounded-xl border border-[#E1EDE6]"
                 >
-                  {/* সম্পর্ক / শিরোনাম */}
                   <div className="w-28 shrink-0">
                     <input
                       type="text"
@@ -592,7 +669,6 @@ export function StudentFormModal({
                     />
                   </div>
 
-                  {/* মোবাইল নম্বর */}
                   <div className="flex-1 min-w-0">
                     <input
                       type="tel"
@@ -603,7 +679,6 @@ export function StudentFormModal({
                     />
                   </div>
 
-                  {/* ডিলিট বাটন */}
                   {formData.guardianContacts.length > 1 && (
                     <button
                       type="button"

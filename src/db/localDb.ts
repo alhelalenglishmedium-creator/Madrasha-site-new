@@ -29,6 +29,9 @@ export class MadrasaLocalDatabase extends Dexie {
       salaryPayments: 'id, staffId, month, paymentDate, synced',
       feeTypes: 'id, name',
     });
+    this.version(2).stores({
+      students: 'id, admissionNo, institutionType, className, section, rollNo, status, phone',
+    });
   }
 }
 

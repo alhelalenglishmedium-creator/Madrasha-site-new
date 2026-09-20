@@ -2,6 +2,7 @@ export type StudentStatus = 'active' | 'archived' | 'graduated';
 export type StaffRole = 'teacher' | 'staff' | 'admin';
 export type AttendanceStatus = 'present' | 'absent' | 'leave';
 export type PaymentMethod = 'cash' | 'bkash' | 'nagad' | 'bank';
+export type InstitutionType = 'madrasa' | 'school' | 'mohila_madrasa';
 
 export interface MadrasaSettings {
   id: string;
@@ -26,6 +27,7 @@ export interface Student {
   admissionNo: string;
   fullName: string;
   fullNameBangla?: string;
+  institutionType?: InstitutionType;
   className: string;
   section?: string;
   rollNo: string;

@@ -1530,6 +1530,7 @@ export function AdminDashboard() {
             name: d.fullNameBangla || d.fullName,
             full_name: d.fullName,
             full_name_bangla: d.fullNameBangla,
+            institution_type: d.institutionType || 'madrasa',
             class_name: d.className,
             roll: String(d.rollNo || '০১'),
             roll_no: String(d.rollNo || '০১'),
