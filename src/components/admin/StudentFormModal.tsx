@@ -16,6 +16,10 @@ import {
   Sparkles,
   Phone,
   Building2,
+  BookOpen,
+  School,
+  Users,
+  AlertTriangle,
 } from 'lucide-react';
 import type { Student, GuardianContact, InstitutionType } from '@/types/database.types';
 import { localDb } from '@/db/localDb';
@@ -29,10 +33,10 @@ interface StudentFormModalProps {
   initialData?: Student | null;
 }
 
-export const INSTITUTION_OPTIONS: { id: InstitutionType; name: string; shortName: string; icon: string }[] = [
-  { id: 'madrasa', name: 'মাদ্রাসা (কওমি ও হিফজ)', shortName: 'মাদ্রাসা', icon: '🕌' },
-  { id: 'school', name: 'আল হেলাল স্কুল', shortName: 'স্কুল', icon: '🏫' },
-  { id: 'mohila_madrasa', name: 'মহিলা কওমি মাদ্রাসা', shortName: 'মহিলা মাদ্রাসা', icon: '🧕' },
+export const INSTITUTION_OPTIONS = [
+  { id: 'madrasa' as InstitutionType, name: 'মাদ্রাসা (কওমি ও হিফজ)', shortName: 'মাদ্রাসা', icon: BookOpen },
+  { id: 'school' as InstitutionType, name: 'আল হেলাল স্কুল', shortName: 'স্কুল', icon: School },
+  { id: 'mohila_madrasa' as InstitutionType, name: 'মহিলা কওমি মাদ্রাসা', shortName: 'মহিলা মাদ্রাসা', icon: Users },
 ];
 
 export const DEFAULT_CLASSES_BY_INSTITUTION: Record<InstitutionType, string[]> = {
@@ -41,14 +45,14 @@ export const DEFAULT_CLASSES_BY_INSTITUTION: Record<InstitutionType, string[]> =
   mohila_madrasa: ['প্লে', 'নার্সারি', 'মহিলা হিফজ শাখা', 'মহিলা কিতাব শাখা'],
 };
 
-// প্রতিষ্ঠান অনুযায়ী শ্রেণি তালিকা তৈরির হেল্পার
-const getClassesForInstitution = (instType: InstitutionType): string[] => {
+// প্রতিষ্ঠান অনুযায়ী শ্রেণি তালিকা পড়ার হেল্পার
+export const getClassesForInstitution = (instType: InstitutionType): string[] => {
   const baseClasses = DEFAULT_CLASSES_BY_INSTITUTION[instType] || DEFAULT_CLASSES_BY_INSTITUTION['madrasa'];
   if (typeof window !== 'undefined') {
-    const savedClasses = localStorage.getItem('madrasa_custom_classes');
-    if (savedClasses) {
+    const savedClassesStr = localStorage.getItem(`custom_classes_${instType}`) || localStorage.getItem('madrasa_custom_classes');
+    if (savedClassesStr) {
       try {
-        const parsed = JSON.parse(savedClasses);
+        const parsed = JSON.parse(savedClassesStr);
         if (Array.isArray(parsed)) {
           const extra = parsed.filter((c) => typeof c === 'string' && !baseClasses.includes(c));
           return [...baseClasses, ...extra];
@@ -57,6 +61,35 @@ const getClassesForInstitution = (instType: InstitutionType): string[] => {
     }
   }
   return baseClasses;
+};
+
+// কাস্টম শ্রেণি সংরক্ষণের হেল্পার
+export const saveCustomClassForInstitution = (instType: InstitutionType, newClass: string): string[] => {
+  if (typeof window === 'undefined' || !newClass.trim()) return getClassesForInstitution(instType);
+  const trimmed = newClass.trim();
+  const key = `custom_classes_${instType}`;
+  const savedStr = localStorage.getItem(key);
+  let existing: string[] = [];
+  if (savedStr) {
+    try { existing = JSON.parse(savedStr); } catch (e) {}
+  }
+  if (!existing.includes(trimmed)) {
+    existing.push(trimmed);
+    localStorage.setItem(key, JSON.stringify(existing));
+  }
+
+  // লেগাসি কি সিঙ্ক
+  const legacyStr = localStorage.getItem('madrasa_custom_classes');
+  let legacyExisting: string[] = [];
+  if (legacyStr) {
+    try { legacyExisting = JSON.parse(legacyStr); } catch (e) {}
+  }
+  if (!legacyExisting.includes(trimmed)) {
+    legacyExisting.push(trimmed);
+    localStorage.setItem('madrasa_custom_classes', JSON.stringify(legacyExisting));
+  }
+
+  return getClassesForInstitution(instType);
 };
 
 export function StudentFormModal({
@@ -99,7 +132,7 @@ export function StudentFormModal({
     const availableClasses = getClassesForInstitution(newInstType);
     setClassList(availableClasses);
 
-    // বর্তমান সিলেক্টেড ক্লাস যদি নতুন লিস্টে না থাকে, তবে ১ম ক্লাস সেট হবে
+    // বর্তমান সিলেক্টেড ক্লাস নতুন তালিকায় না থাকলে প্রথম ক্লাস বেছে নেওয়া হবে
     const nextClass = availableClasses.includes(formData.className)
       ? formData.className
       : (availableClasses[0] || 'প্লে');
@@ -111,28 +144,13 @@ export function StudentFormModal({
     }));
   };
 
-  // নতুন শ্রেণি তৈরি
+  // নতুন কাস্টম শ্রেণি তৈরি
   const handleAddNewClass = () => {
     if (!newClassName.trim()) return;
     const trimmed = newClassName.trim();
-    if (!classList.includes(trimmed)) {
-      const updated = [...classList, trimmed];
-      setClassList(updated);
-
-      // লোকালস্টোরেজে কাস্টম ক্লাস সেভ
-      if (typeof window !== 'undefined') {
-        const savedClasses = localStorage.getItem('madrasa_custom_classes');
-        let existing: string[] = [];
-        if (savedClasses) {
-          try { existing = JSON.parse(savedClasses); } catch (e) {}
-        }
-        if (!existing.includes(trimmed)) {
-          localStorage.setItem('madrasa_custom_classes', JSON.stringify([...existing, trimmed]));
-        }
-      }
-
-      setFormData((prev) => ({ ...prev, className: trimmed }));
-    }
+    const updated = saveCustomClassForInstitution(formData.institutionType, trimmed);
+    setClassList(updated);
+    setFormData((prev) => ({ ...prev, className: trimmed }));
     setNewClassName('');
     setIsAddingClass(false);
   };
@@ -378,8 +396,9 @@ export function StudentFormModal({
 
         {/* এরর মেসেজ */}
         {errorMessage && (
-          <div className="mx-4 mt-2 rounded-xl bg-rose-50 border border-rose-100 p-2 text-[11px] font-semibold text-rose-600">
-            ⚠️ {errorMessage}
+          <div className="mx-4 mt-2 rounded-xl bg-rose-50 border border-rose-100 p-2 text-[11px] font-semibold text-rose-600 flex items-center gap-1.5">
+            <AlertTriangle size={14} className="shrink-0" />
+            <span>{errorMessage}</span>
           </div>
         )}
 
@@ -447,7 +466,7 @@ export function StudentFormModal({
             </div>
           </div>
 
-          {/* ১. প্রতিষ্ঠান / শাখা নির্বাচন (Institution Selector) */}
+          {/* ১. প্রতিষ্ঠান / শাখা নির্বাচন (Institution Selector with Lucide Icons) */}
           <div className="bg-white border border-[#D9E7E0] p-2.5 rounded-2xl shadow-2xs space-y-1.5">
             <label className="text-[10px] font-bold text-[#374151] flex items-center gap-1">
               <Building2 size={13} className="text-[#008955]" />
@@ -457,6 +476,7 @@ export function StudentFormModal({
             <div className="grid grid-cols-3 gap-1.5">
               {INSTITUTION_OPTIONS.map((opt) => {
                 const isSelected = formData.institutionType === opt.id;
+                const IconComp = opt.icon;
                 return (
                   <button
                     key={opt.id}
@@ -468,7 +488,7 @@ export function StudentFormModal({
                         : 'bg-white border-[#E1EDE6] text-[#4B5563] hover:bg-[#F9FAFB]'
                     }`}
                   >
-                    <span className="text-base mb-0.5">{opt.icon}</span>
+                    <IconComp size={16} className="mb-1 shrink-0" />
                     <span className="text-[10px] font-bold leading-tight">{opt.shortName}</span>
                   </button>
                 );
@@ -558,7 +578,7 @@ export function StudentFormModal({
               <div className="flex items-center gap-1 mb-1.5 p-1 bg-[#E7F6ED] border border-[#C6EAD7] rounded-xl">
                 <input
                   type="text"
-                  placeholder="শ্রেণির নাম"
+                  placeholder="যেমন: কেজী বা নাজেরা"
                   value={newClassName}
                   onChange={(e) => setNewClassName(e.target.value)}
                   className="flex-1 bg-white px-2 py-1 text-xs font-bold text-[#1F2937] rounded-lg border border-[#BBE3D3] focus:outline-none"
