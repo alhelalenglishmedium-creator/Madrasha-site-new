@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
+import { InstitutionProvider } from '@/context/InstitutionContext';
 
 export const metadata: Metadata = {
-  title: 'মাদ্রাসায়ে ইসলামিয়া দারুল উলুম, কোম্পানিগঞ্জ।',
-  description: 'Role-Based Madrasa Management System',
+  title: 'স্মার্ট অ্যাকাডেমিক পোর্টাল',
+  description: 'Role-Based Madrasa and School Management System',
 };
 
 export default function RootLayout({
@@ -26,7 +27,9 @@ export default function RootLayout({
       </head>
       <body className="antialiased bg-[#f8fafc]">
         <AuthProvider>
-          {children}
+          <InstitutionProvider>
+            {children}
+          </InstitutionProvider>
         </AuthProvider>
       </body>
     </html>

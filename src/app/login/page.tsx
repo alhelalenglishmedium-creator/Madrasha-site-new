@@ -13,33 +13,19 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-
-// ১. সিস্টেমে অন্তর্ভুক্ত ৩টি শিক্ষা প্রতিষ্ঠান
-const INSTITUTIONS = [
-  {
-    id: 'darul_ulum',
-    name: 'মাদ্রাসায়ে ইসলামিয়া দারুল উলুম, কোম্পানিগঞ্জ।',
-    tagline: 'কওমি ও হিফজুল কুরআন শাখা',
-  },
-  {
-    id: 'al_helal',
-    name: 'আল হেলাল ইংলিশ মিডিয়াম ইসলামিক স্কুল',
-    tagline: 'ইংলিশ ভার্সন ও কম্বাইন্ড শিক্ষা',
-  },
-  {
-    id: 'ayesha_siddika',
-    name: 'আয়েশা সিদ্দিকা মহিলা কওমি মাদ্রাসা',
-    tagline: 'মহিলা কওমি ও হিফজ শাখা',
-  },
-];
+import { useInstitution } from '@/context/InstitutionContext';
+import { INSTITUTIONS, type Institution } from '@/lib/constants';
 
 export default function LoginPage() {
   const router = useRouter();
   const { user, loginWithGoogle, updateUserRole, logout, isLoading } = useAuth();
+  const { setInstitution, currentInstitution } = useInstitution();
 
   // অনবোর্ডিং ফ্লো স্টেট ম্যানেজমেন্ট (Step 1 -> Step 2 -> Step 3)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
-  const [selectedInstitution, setSelectedInstitution] = useState<typeof INSTITUTIONS[0] | null>(null);
+  const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(
+    currentInstitution || INSTITUTIONS[0]
+  );
 
   // লোগো লোড এরর হ্যান্ডলিং স্টেট
   const [logoError1, setLogoError1] = useState(false);
@@ -80,11 +66,9 @@ export default function LoginPage() {
   }, [user, isLoading, router]);
 
   // স্ক্রিন ১: প্রতিষ্ঠান নির্বাচন হ্যান্ডলার
-  const handleSelectInstitution = (inst: typeof INSTITUTIONS[0]) => {
+  const handleSelectInstitution = (inst: Institution) => {
     setSelectedInstitution(inst);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('selected_institution', JSON.stringify(inst));
-    }
+    setInstitution(inst);
     setErrorMessage('');
     setCurrentStep(2); // স্বয়ংক্রিয়ভাবে স্ক্রিন ২-এ রূপান্তর
   };

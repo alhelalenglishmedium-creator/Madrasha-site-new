@@ -27,6 +27,7 @@ import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
 import type { Student, Staff, InstitutionType } from '@/types/database.types';
 import { AdminBottomNav } from '@/components/admin/AdminBottomNav';
+import { useInstitution } from '@/context/InstitutionContext';
 import {
   StudentFormModal,
   getClassesForInstitution,
@@ -34,11 +35,23 @@ import {
 } from '@/components/admin/StudentFormModal';
 
 export default function StudentsDirectoryPage() {
+  const { currentInstitution, setInstitutionByType } = useInstitution();
+
   const [students, setStudents] = useState<Student[]>([]);
   const [teachersList, setTeachersList] = useState<Staff[]>([]);
 
   // মূল প্রতিষ্ঠান হেডার ট্যাব (মাদ্রাসা | স্কুল | মহিলা মাদ্রাসা)
-  const [activeInstTab, setActiveInstTab] = useState<InstitutionType>('madrasa');
+  const [activeInstTab, setActiveInstTab] = useState<InstitutionType>(
+    currentInstitution?.type || 'madrasa'
+  );
+
+  // গ্লোবাল ইনস্টিটিউশন চেঞ্জ হলে সিঙ্ক করা
+  useEffect(() => {
+    if (currentInstitution?.type && currentInstitution.type !== activeInstTab) {
+      setActiveInstTab(currentInstitution.type);
+      setSelectedClass('সব');
+    }
+  }, [currentInstitution]);
 
   // সাব-ক্লাস ফিল্টার স্টেট
   const [selectedClass, setSelectedClass] = useState<string>('সব');
@@ -68,9 +81,10 @@ export default function StudentsDirectoryPage() {
     return ['সব', ...list];
   }, [activeInstTab, isAddingCategory]);
 
-  // প্রতিষ্ঠান হেডার ট্যাব পরিবর্তন হলে শ্রেণি 'সব' এ সেট হবে
+  // প্রতিষ্ঠান হেডার ট্যাব পরিবর্তন হলে সিঙ্ক করা
   const handleTabChange = (tab: InstitutionType) => {
     setActiveInstTab(tab);
+    setInstitutionByType(tab);
     setSelectedClass('সব');
     setIsAddingCategory(false);
     setNewCategoryName('');
