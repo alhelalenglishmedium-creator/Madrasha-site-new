@@ -8,6 +8,7 @@ import {
   Calendar,
   User,
   BookOpen,
+  School,
   Search,
   Users,
   ChevronDown,
@@ -19,11 +20,14 @@ import {
   Clock,
   BarChart3,
   TrendingUp,
+  Building2,
 } from 'lucide-react';
 import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
-import type { Student, AttendanceRecord } from '@/types/database.types';
+import type { Student, AttendanceRecord, InstitutionType } from '@/types/database.types';
 import { AdminBottomNav } from '@/components/admin/AdminBottomNav';
+import { useInstitution } from '@/context/InstitutionContext';
+import { getClassesForInstitution } from '@/components/admin/StudentFormModal';
 
 type TimeFrame = 'daily' | 'weekly' | 'monthly' | 'yearly';
 type StudentReportFrame = 'weekly' | 'monthly' | 'yearly';
@@ -36,8 +40,22 @@ interface MetricData {
 }
 
 export default function AttendancePage() {
+  const { currentInstitution, setInstitutionByType } = useInstitution();
+
+  // মূল প্রতিষ্ঠান হেডার ট্যাব (মাদ্রাসা | স্কুল | মহিলা মাদ্রাসা)
+  const [activeInstTab, setActiveInstTab] = useState<InstitutionType>(
+    currentInstitution?.type || 'madrasa'
+  );
+
+  // গ্লোবাল ইনস্টিটিউশন পরিবর্তন হলে সিঙ্ক করা
+  useEffect(() => {
+    if (currentInstitution?.type && currentInstitution.type !== activeInstTab) {
+      setActiveInstTab(currentInstitution.type);
+      setSelectedClass('সব');
+    }
+  }, [currentInstitution]);
+
   const [activeMetric, setActiveMetric] = useState<TimeFrame>('daily');
-  const [classList, setClassList] = useState<string[]>(['সব', 'প্লে', 'নার্সারি', 'হিফজ']);
   const [selectedClass, setSelectedClass] = useState<string>('সব');
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -70,32 +88,18 @@ export default function AttendancePage() {
   const [allAttendanceRecords, setAllAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // ক্লাস ক্যাটাগরি লোড
-  useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        let classes = ['প্লে', 'নার্সারি', 'হিফজ'];
-        const savedClasses = localStorage.getItem('madrasa_custom_classes');
-        if (savedClasses) {
-          const parsed = JSON.parse(savedClasses);
-          if (Array.isArray(parsed) && parsed.length > 0) classes = parsed;
-        }
+  // সক্রিয় প্রতিষ্ঠানের জন্য ডায়নামিক শ্রেণির তালিকা
+  const availableClassesForInst = useMemo(() => {
+    const list = getClassesForInstitution(activeInstTab);
+    return ['সব', ...list];
+  }, [activeInstTab]);
 
-        const allStudents = await localDb.students.where('status').equals('active').toArray();
-        allStudents.forEach((s) => {
-          if (s.className && !classes.includes(s.className)) {
-            classes.push(s.className);
-          }
-        });
-
-        setClassList(['সব', ...classes]);
-      } catch (err) {
-        console.error('ক্যাটাগরি লোড ত্রুটি:', err);
-      }
-    };
-
-    loadCategories();
-  }, []);
+  // প্রতিষ্ঠান হেডার ট্যাব পরিবর্তন হ্যান্ডলার
+  const handleTabChange = (tab: InstitutionType) => {
+    setActiveInstTab(tab);
+    setInstitutionByType(tab);
+    setSelectedClass('সব');
+  };
 
   // পরিসংখ্যান গণনা ফাংশন
   const calculateRangeStats = (
@@ -142,6 +146,11 @@ export default function AttendancePage() {
       setIsLoading(true);
 
       let loadedStudents = await localDb.students.where('status').equals('active').toArray();
+
+      // ১. প্রতিষ্ঠান ফিল্টারিং
+      loadedStudents = loadedStudents.filter((s) => (s.institutionType || 'madrasa') === activeInstTab);
+
+      // ২. ক্লাস ফিল্টারিং
       if (selectedClass !== 'সব') {
         loadedStudents = loadedStudents.filter((s) => s.className === selectedClass);
       }
@@ -197,7 +206,7 @@ export default function AttendancePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedClass, selectedDate]);
+  }, [activeInstTab, selectedClass, selectedDate]);
 
   useEffect(() => {
     loadAllData();
@@ -263,7 +272,7 @@ export default function AttendancePage() {
     };
   }, [selectedStudentForReport, allAttendanceRecords, selectedDate, studentReportTab]);
 
-  // ফুল-স্ক্রিন পেজের নির্ভুল অ্যানালাইসিস ডাটা
+  // ফুল-স্ক্রিন পেজের অ্যানালাইসিস ডাটা
   const analysisBreakdownData = useMemo(() => {
     if (!selectedAnalysisFrame) return null;
 
@@ -332,7 +341,6 @@ export default function AttendancePage() {
       ? Math.round((totalPresentSum / totalPossibleAttendances) * 100)
       : 0;
 
-    // নির্ভুল গড় ও অনুপস্থিতি গণনা
     const avgPresentPerDay = totalPossibleAttendances > 0 && totalDaysCount > 0
       ? Math.min(totalStudents, Math.round(totalPresentSum / totalDaysCount))
       : 0;
@@ -453,7 +461,7 @@ export default function AttendancePage() {
               </div>
 
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                {classList.map((cls) => (
+                {availableClassesForInst.map((cls) => (
                   <button
                     key={cls}
                     type="button"
@@ -464,7 +472,7 @@ export default function AttendancePage() {
                         : 'bg-white text-slate-600 border border-[#E1EDE6] hover:bg-[#EDF4F0]'
                     }`}
                   >
-                    {cls} বিভাগ
+                    {cls}
                   </button>
                 ))}
               </div>
@@ -536,7 +544,8 @@ export default function AttendancePage() {
         ) : (
           /* ভিউ ২: মূল ড্যাশবোর্ড ও ওভারভিউ পেজ */
           <>
-            <header className="shrink-0 bg-[#F7FBF9] px-4 pt-5 pb-3 z-30 flex items-center justify-between gap-2 border-b border-[#E7F0EB]">
+            {/* টপ হেডার বার */}
+            <header className="shrink-0 bg-[#F7FBF9] px-4 pt-4 pb-2 z-30 flex items-center justify-between gap-2 border-b border-[#E7F0EB]">
               <div className="flex items-center gap-2.5 min-w-0">
                 <Link
                   href="/dashboard"
@@ -545,15 +554,12 @@ export default function AttendancePage() {
                   <ArrowLeft size={18} />
                 </Link>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] font-bold text-[#008955] bg-[#E7F6ED] px-1.5 py-0.5 rounded shrink-0">
-                      লাইভ মনিটরিং
-                    </span>
-                    <span className="text-[10px] text-[#9CA3AF] font-medium">• শিক্ষক দ্বারা পরিচালিত</span>
-                  </div>
-                  <h1 className="text-xs sm:text-sm font-bold text-[#1F2937] mt-0.5 leading-tight truncate">
-                    উপস্থিতির পর্যালোচনা ও খতিয়ান
+                  <h1 className="text-xs sm:text-sm font-bold text-[#1F2937] leading-tight truncate">
+                    হাজিরা খাতা ও পর্যালোচনা
                   </h1>
+                  <p className="text-[10px] text-[#008955] font-bold mt-0.5 font-sans">
+                    মোট তালিকাভুক্ত: {students.length} জন
+                  </p>
                 </div>
               </div>
 
@@ -567,6 +573,74 @@ export default function AttendancePage() {
                 />
               </div>
             </header>
+
+            {/* হেডার ফিল্টারিং (৩টি মূল প্রতিষ্ঠান ট্যাব + ডায়নামিক সাব-ক্লাস) */}
+            <div className="px-4 pt-3 pb-2 space-y-2.5 shrink-0 bg-[#F7FBF9] z-20 border-b border-[#E7F0EB]">
+
+              {/* ৩টি মূল প্রতিষ্ঠান হেডার ট্যাব (মাদ্রাসা | স্কুল | মহিলা মাদ্রাসা) */}
+              <div className="grid grid-cols-3 gap-1 bg-[#E7F0EB] p-1 rounded-2xl border border-[#D9E7E0]">
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('madrasa')}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl text-xs font-bold transition active:scale-95 ${
+                    activeInstTab === 'madrasa'
+                      ? 'bg-[#008955] text-white shadow-xs'
+                      : 'text-[#4B5563] hover:text-[#1F2937]'
+                  }`}
+                >
+                  <BookOpen size={14} />
+                  <span>মাদ্রাসা</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('school')}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl text-xs font-bold transition active:scale-95 ${
+                    activeInstTab === 'school'
+                      ? 'bg-[#008955] text-white shadow-xs'
+                      : 'text-[#4B5563] hover:text-[#1F2937]'
+                  }`}
+                >
+                  <School size={14} />
+                  <span>স্কুল</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('mohila_madrasa')}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl text-xs font-bold transition active:scale-95 ${
+                    activeInstTab === 'mohila_madrasa'
+                      ? 'bg-[#008955] text-white shadow-xs'
+                      : 'text-[#4B5563] hover:text-[#1F2937]'
+                  }`}
+                >
+                  <Users size={14} />
+                  <span>মহিলা</span>
+                </button>
+              </div>
+
+              {/* ডায়নামিক সাব-ক্লাস ফিল্টার বাটন */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                {availableClassesForInst.map((cls) => {
+                  const isSelected = selectedClass === cls;
+                  return (
+                    <button
+                      key={cls}
+                      type="button"
+                      onClick={() => setSelectedClass(cls)}
+                      className={`py-1 px-3 rounded-xl text-[11px] font-bold transition-all active:scale-95 flex items-center justify-center gap-1 shrink-0 ${
+                        isSelected
+                          ? 'bg-[#008955] text-white shadow-xs'
+                          : 'bg-white text-[#4B5563] border border-[#E1EDE6] hover:bg-[#EDF4F0]'
+                      }`}
+                    >
+                      <span>{cls}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+            </div>
 
             <main className="flex-1 overflow-y-auto overscroll-contain no-scrollbar p-4 space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -614,27 +688,6 @@ export default function AttendancePage() {
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-                {classList.map((cls) => {
-                  const isSelected = selectedClass === cls;
-                  return (
-                    <button
-                      key={cls}
-                      type="button"
-                      onClick={() => setSelectedClass(cls)}
-                      className={`flex-1 min-w-[70px] py-1.5 px-3 rounded-2xl text-xs font-bold transition-all active:scale-95 flex items-center justify-center gap-1.5 ${
-                        isSelected
-                          ? 'bg-[#008955] text-white shadow-xs'
-                          : 'bg-white text-[#4B5563] border border-[#E1EDE6] hover:bg-[#EDF4F0]'
-                      }`}
-                    >
-                      <BookOpen size={11} className={isSelected ? 'text-white' : 'text-[#008955]'} />
-                      <span>{cls}</span>
-                    </button>
                   );
                 })}
               </div>
@@ -700,7 +753,7 @@ export default function AttendancePage() {
                             <div className="flex items-center justify-between">
                               <span className="inline-flex items-center gap-1.5 px-3 py-0.5 bg-[#E7F6ED] text-[#008955] text-[11px] font-bold rounded-full border border-[#BBE3D3]">
                                 <BookOpen size={11} />
-                                <span>{student.className || 'হিফজ'} বিভাগ</span>
+                                <span>{student.className || 'সাধারণ'}</span>
                               </span>
 
                               <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md font-sans">

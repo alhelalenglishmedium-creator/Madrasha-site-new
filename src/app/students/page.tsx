@@ -22,6 +22,9 @@ import {
   Plus,
   Check,
   Building2,
+  CreditCard,
+  MapPin,
+  IdCard,
 } from 'lucide-react';
 import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
@@ -663,80 +666,206 @@ export default function StudentsDirectoryPage() {
           )}
         </main>
 
-        {/* ================= ৪. শিক্ষার্থী বিস্তারিত প্রোফাইল মোডাল ================= */}
+        {/* ================= ৪. শিক্ষার্থী বিস্তারিত প্রোফাইল মোডাল (Redesigned Centered ID Card Style) ================= */}
         {selectedStudent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
-            <div className="relative w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl border border-slate-100 space-y-4">
-              <button
-                type="button"
-                onClick={() => setSelectedStudent(null)}
-                className="absolute right-4 top-4 h-8 w-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition"
-              >
-                <X size={16} />
-              </button>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-3 sm:p-4 font-hind animate-in fade-in duration-200">
+            <div className="relative w-full max-w-[380px] sm:max-w-[410px] rounded-[32px] bg-[#F7FBF9] shadow-2xl border border-[#DFECE5] overflow-hidden">
 
-              <div className="flex items-center gap-3">
-                <div className="h-16 w-16 rounded-2xl bg-[#E7F6ED] border border-[#BBE3D3] overflow-hidden flex items-center justify-center text-[#008955]">
+              {/* টপ আইডি কার্ড ব্যানার হেডার */}
+              <div className="bg-gradient-to-r from-[#008955] via-emerald-600 to-teal-700 px-4 pt-4 pb-11 text-white relative flex items-start justify-between">
+                <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold border border-white/20">
+                  <IdCard size={12} />
+                  <span>শিক্ষার্থী আইডি কার্ড প্রোফাইল</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudent(null)}
+                  className="h-7 w-7 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30 flex items-center justify-center transition border border-white/20 active:scale-95"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              {/* সেন্টার অ্যাভাটার / ছবি */}
+              <div className="relative -mt-9 flex flex-col items-center justify-center px-4">
+                <div className="w-20 h-20 rounded-full border-4 border-white bg-gradient-to-tr from-[#E7F6ED] to-[#FEF3C7] shadow-md overflow-hidden flex items-center justify-center text-[#008955] shrink-0">
                   {selectedStudent.photoUrl ? (
                     <img
                       src={selectedStudent.photoUrl}
-                      alt={selectedStudent.fullNameBangla}
-                      className="h-full w-full object-cover"
+                      alt={selectedStudent.fullNameBangla || selectedStudent.fullName}
+                      className="w-full h-full object-cover"
                     />
                   ) : (
-                    <User size={32} />
+                    <User size={38} className="text-[#008955]/70" />
                   )}
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    {selectedStudent.fullNameBangla || selectedStudent.fullName}
-                  </h3>
-                  <p className="text-[11px] font-bold text-[#008955] font-sans">
-                    UID / আইডি: {selectedStudent.admissionNo || selectedStudent.id}
+
+                {/* নাম ও সাবটাইটেল (সেন্টার অ্যালাইন্ড) */}
+                <h3 className="text-base font-black text-slate-900 leading-tight text-center mt-2.5 px-2">
+                  {selectedStudent.fullNameBangla || selectedStudent.fullName}
+                </h3>
+                {selectedStudent.fullNameBangla && selectedStudent.fullName && (
+                  <p className="text-xs text-slate-500 font-medium text-center font-sans">
+                    {selectedStudent.fullName}
                   </p>
-                  <p className="text-[10px] text-slate-500 font-bold">
-                    শ্রেণি: {selectedStudent.className} | রোল: {selectedStudent.rollNo}
-                  </p>
+                )}
+
+                {/* সেন্টার্ড ব্যাজেস (শ্রেণি, রোল, আইডি) */}
+                <div className="flex items-center justify-center gap-1.5 flex-wrap mt-2">
+                  <span className="bg-[#E7F6ED] text-[#008955] border border-[#BBE3D3] text-[11px] font-bold px-2.5 py-0.5 rounded-full">
+                    {selectedStudent.className || 'সাধারণ'} বিভাগ
+                  </span>
+
+                  <span className="bg-[#FEF3C7] text-[#92400E] border border-amber-200 text-[11px] font-bold px-2.5 py-0.5 rounded-full font-sans">
+                    রোল: {selectedStudent.rollNo || '০'}
+                  </span>
+
+                  <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold px-2.5 py-0.5 rounded-full font-sans">
+                    UID: {selectedStudent.admissionNo || selectedStudent.id}
+                  </span>
+
+                  {selectedStudent.bloodGroup && (
+                    <span className="bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-bold px-2.5 py-0.5 rounded-full">
+                      রক্ত: {selectedStudent.bloodGroup}
+                    </span>
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-1.5 rounded-2xl bg-slate-50 p-3 text-xs border border-slate-100">
-                <p>
-                  <span className="font-bold text-slate-600">পিতার নাম:</span>{' '}
-                  {selectedStudent.fatherName || 'নেই'}
-                </p>
-                <p>
-                  <span className="font-bold text-slate-600">মোবাইল:</span>{' '}
-                  {selectedStudent.phone || 'নেই'}
-                </p>
-                <p>
-                  <span className="font-bold text-slate-600">উস্তাদ/শিক্ষক:</span>{' '}
-                  {selectedStudent.assigned_teacher_name || 'যুক্ত করা হয়নি'}
-                </p>
-                <p>
-                  <span className="font-bold text-slate-600">মাসিক ফি:</span>{' '}
-                  {selectedStudent.monthlyFee} টাকা
-                </p>
-                <p>
-                  <span className="font-bold text-slate-600">ঠিকানা:</span>{' '}
-                  {selectedStudent.address || 'নেই'}
-                </p>
+              {/* ব্যালেন্সড ২-কলাম ইনফরমেশন গ্রিড */}
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {/* পিতার নাম */}
+                  <div className="bg-white p-2.5 rounded-2xl border border-[#E1EDE6] shadow-2xs space-y-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold block flex items-center gap-1">
+                      <User size={11} className="text-[#008955]" />
+                      <span>পিতার নাম</span>
+                    </span>
+                    <span className="font-bold text-slate-800 text-xs block truncate">
+                      {selectedStudent.fatherName || 'তথ্য নেই'}
+                    </span>
+                  </div>
+
+                  {/* উস্তাদ/শিক্ষক */}
+                  <div className="bg-white p-2.5 rounded-2xl border border-[#E1EDE6] shadow-2xs space-y-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold block flex items-center gap-1">
+                      <UserCheck size={11} className="text-[#008955]" />
+                      <span>উস্তাদ / শিক্ষক</span>
+                    </span>
+                    <span className="font-bold text-[#008955] text-xs block truncate">
+                      {selectedStudent.assigned_teacher_name || 'যুক্ত করা হয়নি'}
+                    </span>
+                  </div>
+
+                  {/* মাসিক প্রদেয় ফি */}
+                  <div className="bg-white p-2.5 rounded-2xl border border-[#E1EDE6] shadow-2xs space-y-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold block flex items-center gap-1">
+                      <CreditCard size={11} className="text-[#008955]" />
+                      <span>মাসিক প্রদেয় ফি</span>
+                    </span>
+                    <span className="font-black text-[#008955] text-xs block font-sans">
+                      {selectedStudent.monthlyFee?.toLocaleString('bn-BD') || '০'} ৳
+                    </span>
+                  </div>
+
+                  {/* ঠিকানা / গ্রাম */}
+                  <div className="bg-white p-2.5 rounded-2xl border border-[#E1EDE6] shadow-2xs space-y-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold block flex items-center gap-1">
+                      <MapPin size={11} className="text-[#008955]" />
+                      <span>ঠিকানা / গ্রাম</span>
+                    </span>
+                    <span className="font-bold text-slate-800 text-xs block truncate">
+                      {selectedStudent.address || 'তথ্য নেই'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* অভিভাবকের মোবাইল নাম্বারসমূহ (Click to Call) */}
+                <div className="bg-white p-3 rounded-2xl border border-[#E1EDE6] shadow-2xs space-y-2">
+                  <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                    <Phone size={12} className="text-[#008955]" />
+                    <span>অভিভাবকের মোবাইল নম্বরসমূহ</span>
+                  </span>
+
+                  <div className="space-y-1.5">
+                    {Array.isArray(selectedStudent.guardianContacts) &&
+                    selectedStudent.guardianContacts.length > 0 ? (
+                      selectedStudent.guardianContacts.map((contact, idx) => (
+                        <div
+                          key={contact.id || idx}
+                          className="flex items-center justify-between bg-[#F7FBF9] p-2 rounded-xl border border-[#E1EDE6]"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[10px] font-bold text-[#008955] bg-[#E7F6ED] px-2 py-0.5 rounded-md border border-[#CDE9DC]">
+                              {contact.title || 'অভিভাবক'}
+                            </span>
+                            <span className="text-xs font-semibold text-slate-800 font-sans truncate">
+                              {contact.phone || 'নম্বর নেই'}
+                            </span>
+                          </div>
+
+                          {contact.phone && (
+                            <a
+                              href={`tel:${contact.phone}`}
+                              className="h-6 px-2.5 rounded-lg bg-[#E7F6ED] text-[#008955] border border-[#BBE3D3] text-[10px] font-bold flex items-center gap-1 hover:bg-[#008955] hover:text-white transition active:scale-95 shrink-0"
+                            >
+                              <Phone size={10} />
+                              <span>কল</span>
+                            </a>
+                          )}
+                        </div>
+                      ))
+                    ) : selectedStudent.phone ? (
+                      <div className="flex items-center justify-between bg-[#F7FBF9] p-2 rounded-xl border border-[#E1EDE6]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-[#008955] bg-[#E7F6ED] px-2 py-0.5 rounded-md">
+                            অভিভাবক
+                          </span>
+                          <span className="text-xs font-semibold text-slate-800 font-sans">
+                            {selectedStudent.phone}
+                          </span>
+                        </div>
+                        <a
+                          href={`tel:${selectedStudent.phone}`}
+                          className="h-6 px-2.5 rounded-lg bg-[#E7F6ED] text-[#008955] border border-[#BBE3D3] text-[10px] font-bold flex items-center gap-1 hover:bg-[#008955] hover:text-white transition active:scale-95 shrink-0"
+                        >
+                          <Phone size={10} />
+                          <span>কল</span>
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 italic">কোনো ফোন নম্বর দেওয়া নেই</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* অ্যাকশন বাটনসমূহ */}
+                <div className="pt-2 flex items-center justify-between border-t border-[#E7F0EB]">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStudent(null)}
+                    className="rounded-xl border border-[#D9E7E0] bg-white px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
+                  >
+                    বন্ধ করুন
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingStudent(selectedStudent);
+                      setSelectedStudent(null);
+                      setIsFormModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 rounded-xl bg-[#008955] px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#007548] active:scale-95 transition"
+                  >
+                    <Edit size={13} />
+                    <span>সম্পাদনা করুন</span>
+                  </button>
+                </div>
+
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingStudent(selectedStudent);
-                    setSelectedStudent(null);
-                    setIsFormModalOpen(true);
-                  }}
-                  className="flex items-center gap-1 rounded-xl bg-[#008955] px-4 py-2 text-xs font-bold text-white hover:bg-[#007548] active:scale-95 transition"
-                >
-                  <Edit size={14} />
-                  <span>সম্পাদনা করুন</span>
-                </button>
-              </div>
             </div>
           </div>
         )}
