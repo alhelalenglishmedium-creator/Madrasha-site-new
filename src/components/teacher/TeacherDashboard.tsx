@@ -99,6 +99,7 @@ export function TeacherDashboard() {
         const onlyDigits = cleanUid.replace(/\D/g, '');
         const uPhone = String(user?.phone || '').trim();
         const uEmail = String(user?.email || '').trim().toLowerCase();
+        const authUserId = String(user?.id || '').trim().toLowerCase();
 
         const isRecordMatch = (rec: any) => {
           const rId = String(rec.id || '').toLowerCase().trim();
@@ -114,71 +115,75 @@ export function TeacherDashboard() {
           );
         };
 
-        // (ক) Supabase - staff টেবিলে সন্ধান
-        try {
-          const { data: supaStaff } = await supabase
-            .from('staff')
-            .select('*');
-
-          if (supaStaff && supaStaff.length > 0) {
-            const found = supaStaff.find(isRecordMatch);
-            if (found) {
-              matchedTeacher = {
-                id: found.id,
-                teacher_uid: found.teacher_uid || found.id,
-                fullName: found.full_name || found.fullName || found.name || user?.name || 'মুহতারাম শিক্ষক',
-                phone: found.phone || user?.phone || '',
-                email: found.email || user?.email || '',
-                role: found.role || 'teacher',
-                designation: found.designation || 'শিক্ষক',
-                assignedClass: found.assigned_class || found.assignedClass || 'হিফজ',
-                isClassTeacher: found.is_class_teacher ?? found.isClassTeacher ?? true,
-                monthlySalary: Number(found.monthly_salary || found.monthlySalary || 15000),
-                photoUrl: found.photo_url || found.photoUrl || user?.avatarUrl || '',
-                joiningDate: found.joining_date || found.joiningDate || new Date().toISOString().split('T')[0],
-                status: found.status || 'active',
-                createdAt: found.created_at || new Date().toISOString(),
-                updatedAt: found.updated_at || new Date().toISOString(),
-              };
-            }
-          }
-        } catch (e) {
-          console.warn('Dashboard cloud staff fetch warning:', e);
-        }
-
-        // (খ) Supabase - teachers টেবিলে সন্ধান (যদি staff টেবিলে না পাওয়া যায়)
-        if (!matchedTeacher) {
+        // ১. মিলি-সেকেন্ডে লোকালডিবি (Dexie Cache First) থেকে ইনস্ট্যান্ট রিড
+        if (localDb?.staff) {
           try {
-            const { data: supaTeachers } = await supabase
-              .from('teachers')
-              .select('*');
-
-            if (supaTeachers && supaTeachers.length > 0) {
-              const foundTc = supaTeachers.find(isRecordMatch);
-              if (foundTc) {
-                matchedTeacher = {
-                  id: foundTc.id,
-                  teacher_uid: foundTc.teacher_uid || foundTc.id,
-                  fullName: foundTc.full_name || foundTc.fullName || foundTc.name || user?.name || 'মুহতারাম শিক্ষক',
-                  phone: foundTc.phone || user?.phone || '',
-                  email: foundTc.email || user?.email || '',
-                  role: 'teacher',
-                  designation: foundTc.designation || 'শিক্ষক',
-                  assignedClass: foundTc.assigned_class || foundTc.assignedClass || 'হিফজ',
-                  isClassTeacher: true,
-                  monthlySalary: Number(foundTc.monthly_salary || foundTc.monthlySalary || 15000),
-                  photoUrl: foundTc.photo_url || foundTc.photoUrl || user?.avatarUrl || '',
-                  joiningDate: foundTc.joining_date || foundTc.joiningDate || new Date().toISOString().split('T')[0],
-                  status: 'active',
-                  createdAt: foundTc.created_at || new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                };
+            const localStaff = await localDb.staff.toArray();
+            if (localStaff.length > 0) {
+              const found = localStaff.find(isRecordMatch);
+              if (found) {
+                matchedTeacher = found;
+                setCurrentTeacher(matchedTeacher);
               }
             }
-          } catch (e) {
-            console.warn('Dashboard cloud teachers fetch warning:', e);
-          }
+          } catch (e) {}
         }
+
+        // ২. যদি লোকালডিবিতে না পাওয়া যায় -> ফলব্যাক অবজেক্ট সেটিং
+        if (!matchedTeacher && (user || activeUid)) {
+          matchedTeacher = {
+            id: user?.identifier || activeUid || 'TEA-101',
+            teacher_uid: user?.identifier || activeUid || 'TEA-101',
+            fullName: user?.name || 'মুহতারাম শিক্ষক',
+            phone: user?.phone || '',
+            email: user?.email || '',
+            role: 'teacher',
+            designation: 'শিক্ষক',
+            assignedClass: 'হিফজ',
+            isClassTeacher: true,
+            monthlySalary: 15000,
+            photoUrl: user?.avatarUrl || '',
+            joiningDate: new Date().toISOString().split('T')[0],
+            status: 'active',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          setCurrentTeacher(matchedTeacher);
+        }
+
+        // ৩. ব্যাকগ্রাউন্ডে সাইলেন্টলি (Stale-While-Revalidate) শুধুমাত্র ১টি টার্গেটেড ক্যোয়ারী
+        try {
+          const queryVal = cleanUid || authUserId;
+          if (queryVal) {
+            const { data: cloudStaff } = await supabase
+              .from('staff')
+              .select('*')
+              .or(`id.eq.${queryVal},teacher_uid.eq.${queryVal}`)
+              .maybeSingle();
+
+            if (cloudStaff) {
+              matchedTeacher = {
+                id: cloudStaff.id,
+                teacher_uid: cloudStaff.teacher_uid || cloudStaff.id,
+                fullName: cloudStaff.full_name || cloudStaff.fullName || cloudStaff.name || user?.name || 'মুহতারাম শিক্ষক',
+                phone: cloudStaff.phone || user?.phone || '',
+                email: cloudStaff.email || user?.email || '',
+                role: cloudStaff.role || 'teacher',
+                designation: cloudStaff.designation || 'শিক্ষক',
+                assignedClass: cloudStaff.assigned_class || cloudStaff.assignedClass || 'হিফজ',
+                isClassTeacher: cloudStaff.is_class_teacher ?? cloudStaff.isClassTeacher ?? true,
+                monthlySalary: Number(cloudStaff.monthly_salary || cloudStaff.monthlySalary || 15000),
+                photoUrl: cloudStaff.photo_url || cloudStaff.photoUrl || user?.avatarUrl || '',
+                joiningDate: cloudStaff.joining_date || cloudStaff.joiningDate || new Date().toISOString().split('T')[0],
+                status: cloudStaff.status || 'active',
+                createdAt: cloudStaff.created_at || new Date().toISOString(),
+                updatedAt: cloudStaff.updated_at || new Date().toISOString(),
+              };
+              setCurrentTeacher(matchedTeacher);
+              if (localDb?.staff) await localDb.staff.put(matchedTeacher);
+            }
+          }
+        } catch (e) {}
 
         // (গ) LocalDb - staff টেবিলে সন্ধান
         if (!matchedTeacher) {

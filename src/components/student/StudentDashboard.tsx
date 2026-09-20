@@ -192,47 +192,24 @@ export function StudentDashboard() {
           updatedAt: new Date().toISOString(),
         });
 
-        // (ক) Supabase Cloud - students টেবিলে সন্ধান
-        try {
-          const { data: supaStudents } = await supabase.from('students').select('*');
-          if (supaStudents && supaStudents.length > 0) {
-            const found = supaStudents.find(isStudentMatch);
-            if (found) currentStudent = mapStudentData(found);
-          }
-        } catch (e) {}
-
-        // (খ) Supabase Cloud - profiles টেবিলে সন্ধান
-        if (!currentStudent && user?.id) {
+        // ১. মিলি-সেকেন্ডে লোকালডিবি (Dexie Cache First) থেকে ইনস্ট্যান্ট রিড
+        if (localDb?.students) {
           try {
-            const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-            if (profile) {
-              const pIdentifier = String(profile.identifier || '').trim().toLowerCase();
-              if (pIdentifier) {
-                const { data: supaStudents } = await supabase.from('students').select('*');
-                if (supaStudents && supaStudents.length > 0) {
-                  const found = supaStudents.find((s: any) => {
-                    const sId = String(s.id || s.admission_no || '').trim().toLowerCase();
-                    return sId === pIdentifier || sId.includes(pIdentifier);
-                  });
-                  if (found) currentStudent = mapStudentData(found);
+            const allLocalStudents = await localDb.students.toArray();
+            if (allLocalStudents.length > 0) {
+              const found = allLocalStudents.find(isStudentMatch);
+              if (found) {
+                currentStudent = mapStudentData(found);
+                setStudent(currentStudent);
+                if (currentStudent.institutionType) {
+                  setInstitutionByType(currentStudent.institutionType);
                 }
               }
             }
           } catch (e) {}
         }
 
-        // (গ) LocalDb - students টেবিলে সন্ধান
-        if (!currentStudent && localDb?.students) {
-          try {
-            const allLocalStudents = await localDb.students.toArray();
-            if (allLocalStudents.length > 0) {
-              const found = allLocalStudents.find(isStudentMatch);
-              if (found) currentStudent = mapStudentData(found);
-            }
-          } catch (e) {}
-        }
-
-        // (ঘ) যদি কোথাও না পাওয়া যায় -> Auth User সেশন থেকে Fallback Student রেকর্ড তৈরি
+        // ২. যদি লোকালডিবিতে না পাওয়া যায় -> ফলব্যাক সেশন অবজেক্ট
         if (!currentStudent && (user || activeUid)) {
           currentStudent = {
             id: user?.identifier || activeUid || 'STU-101',
@@ -249,7 +226,30 @@ export function StudentDashboard() {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
+          setStudent(currentStudent);
         }
+
+        // ৩. ব্যাকগ্রাউন্ডে সাইলেন্টলি (Stale-While-Revalidate) শুধুমাত্র ১টি টার্গেটেড সুপাবেস ক্যোয়ারী
+        try {
+          const queryVal = cleanUid || authUserId;
+          if (queryVal) {
+            const { data: cloudStudent } = await supabase
+              .from('students')
+              .select('*')
+              .or(`id.eq.${queryVal},admission_no.eq.${queryVal}`)
+              .maybeSingle();
+
+            if (cloudStudent) {
+              const updatedStudent = mapStudentData(cloudStudent);
+              currentStudent = updatedStudent;
+              setStudent(updatedStudent);
+              await localDb.students.put(updatedStudent);
+              if (updatedStudent.institutionType) {
+                setInstitutionByType(updatedStudent.institutionType);
+              }
+            }
+          }
+        } catch (e) {}
 
         if (currentStudent && localDb?.students) {
           try {

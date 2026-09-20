@@ -311,15 +311,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (profile.role === 'teacher') {
           try {
-            const pid = String(profile.identifier).trim().toLowerCase();
-            const { data: cloudStaff } = await fetchClient.from('staff').select('*');
-            if (cloudStaff && cloudStaff.length > 0) {
-              const matched = cloudStaff.find(
-                (s: any) => String(s.teacher_uid || s.id || '').trim().toLowerCase() === pid
-              );
+            const pid = String(profile.identifier).trim();
+            if (pid) {
+              const { data: matched } = await fetchClient
+                .from('staff')
+                .select('id, teacher_uid, full_name, name, phone, photo_url')
+                .or(`id.eq.${pid},teacher_uid.eq.${pid}`)
+                .maybeSingle();
+
               if (matched) {
-                dbOfficialName = matched.full_name || matched.fullName || matched.name || dbOfficialName;
-                dbOfficialPhoto = matched.photo_url || matched.photoUrl || dbOfficialPhoto;
+                dbOfficialName = matched.full_name || matched.name || dbOfficialName;
+                dbOfficialPhoto = matched.photo_url || dbOfficialPhoto;
                 dbOfficialPhone = matched.phone || dbOfficialPhone;
               }
             }
@@ -328,18 +330,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (profile.role === 'student') {
           try {
-            const pid = String(profile.identifier).trim().toLowerCase();
-            const { data: cloudStudents } = await fetchClient.from('students').select('*');
-            if (cloudStudents && cloudStudents.length > 0) {
-              const matched = cloudStudents.find(
-                (std: any) => String(std.id || std.admission_no || '').trim().toLowerCase() === pid
-              );
+            const pid = String(profile.identifier).trim();
+            if (pid) {
+              const { data: matched } = await fetchClient
+                .from('students')
+                .select('id, admission_no, name, full_name, full_name_bangla, phone, photo_url, institution_type')
+                .or(`id.eq.${pid},admission_no.eq.${pid}`)
+                .maybeSingle();
+
               if (matched) {
                 dbOfficialName = matched.name || matched.full_name_bangla || matched.full_name || dbOfficialName;
-                dbOfficialPhoto = matched.photo_url || matched.photoUrl || dbOfficialPhoto;
+                dbOfficialPhoto = matched.photo_url || dbOfficialPhoto;
                 dbOfficialPhone = matched.phone || dbOfficialPhone;
 
-                const instType = matched.institution_type || matched.institutionType;
+                const instType = matched.institution_type;
                 if (instType && typeof window !== 'undefined') {
                   const instMatch = INSTITUTIONS.find((i) => i.type === instType);
                   if (instMatch) {
