@@ -11,6 +11,8 @@ import {
   Loader2,
   LogOut,
   ShieldCheck,
+  School,
+  BookOpen,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useInstitution } from '@/context/InstitutionContext';
@@ -23,9 +25,7 @@ export default function LoginPage() {
 
   // অনবোর্ডিং ফ্লো স্টেট ম্যানেজমেন্ট (Step 1 -> Step 2 -> Step 3)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
-  const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(
-    currentInstitution || INSTITUTIONS[0]
-  );
+  const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null);
 
   // লোগো লোড এরর হ্যান্ডলিং স্টেট
   const [logoError1, setLogoError1] = useState(false);
@@ -45,8 +45,12 @@ export default function LoginPage() {
       if (savedInst) {
         try {
           const parsed = JSON.parse(savedInst);
-          if (parsed && parsed.name) {
-            setSelectedInstitution(parsed);
+          if (parsed && (parsed.id || parsed.type)) {
+            const matched = INSTITUTIONS.find((i) => i.id === parsed.id || i.type === parsed.type);
+            if (matched) {
+              setSelectedInstitution(matched);
+              setInstitution(matched);
+            }
           }
         } catch (e) {}
       }
@@ -102,7 +106,7 @@ export default function LoginPage() {
     }
   };
 
-  // লোডিং স্পিনার (সেশন ভেরিফিকেশনের সময় ফ্লিকারিং বন্ধ রাখতে)
+  // লোডিং স্পিনার
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] p-4 text-slate-900 font-hind">
@@ -145,11 +149,15 @@ export default function LoginPage() {
             )}
           </div>
           <div>
-            <h1 className="text-lg font-bold text-slate-900 leading-tight">
-              {selectedInstitution ? selectedInstitution.name : 'স্মার্ট অ্যাকাডেমিক পোর্টাল'}
+            <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+              {selectedInstitution
+                ? selectedInstitution.name
+                : 'স্মার্ট অ্যাকাডেমিক পোর্টাল'}
             </h1>
-            <p className="text-xs text-emerald-800 font-medium mt-0.5">
-              মাদ্রাসা ও শিক্ষা প্রতিষ্ঠান পরিচালন ব্যবস্থা
+            <p className="text-xs text-emerald-800 font-bold mt-0.5">
+              {selectedInstitution
+                ? selectedInstitution.tagline
+                : 'শিক্ষা প্রতিষ্ঠান পরিচালন ব্যবস্থা'}
             </p>
           </div>
         </div>
@@ -159,9 +167,9 @@ export default function LoginPage() {
            ========================================================= */}
         {currentStep === 1 && (
           <div className="space-y-4 pt-1 animate-in fade-in duration-200">
-            {/* [স্থান ২] ইনফো ব্যানার সাব-লোগো */}
+            {/* ইনফো ব্যানার সাব-লোগো */}
             <div className="rounded-2xl bg-emerald-50/60 border border-emerald-100 p-3.5 text-center">
-              <div className="mx-auto h-10 w-10 mb-1 flex items-center justify-center rounded-xl bg-white p-1 border border-emerald-100 shadow-2xs overflow-hidden">
+              <div className="mx-auto h-10 w-10 mb-1 flex items-center justify-center rounded-xl bg-white p-1 border border-emerald-100 shadow-2xs overflow-hidden text-[#064e3b]">
                 {!logoError2 ? (
                   <img
                     src="/logo.png"
@@ -170,7 +178,7 @@ export default function LoginPage() {
                     onError={() => setLogoError2(true)}
                   />
                 ) : (
-                  <Building2 className="h-5 w-5 text-[#064e3b]" />
+                  <Building2 className="h-5 w-5" />
                 )}
               </div>
               <p className="text-xs font-bold text-[#064e3b]">ইনস্টিটিউট নির্বাচন করুন</p>
@@ -179,7 +187,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* প্রতিষ্ঠান কার্ডসমূহ */}
+            {/* প্রতিষ্ঠান কার্ডসমূহ (Clean Lucide SVG) */}
             <div className="space-y-2.5">
               {INSTITUTIONS.map((inst) => {
                 const isSelected = selectedInstitution?.id === inst.id;
@@ -242,7 +250,7 @@ export default function LoginPage() {
             </div>
 
             <div className="rounded-2xl bg-emerald-50/60 border border-emerald-100 p-4 text-center space-y-1">
-              <div className="mx-auto h-12 w-12 mb-1 flex items-center justify-center rounded-xl bg-white p-1 border border-emerald-100 shadow-2xs overflow-hidden">
+              <div className="mx-auto h-12 w-12 mb-1 flex items-center justify-center rounded-xl bg-white p-1 border border-emerald-100 shadow-2xs overflow-hidden text-[#064e3b]">
                 {!logoError2 ? (
                   <img
                     src="/logo.png"
@@ -251,7 +259,7 @@ export default function LoginPage() {
                     onError={() => setLogoError2(true)}
                   />
                 ) : (
-                  <Building2 className="h-6 w-6 text-[#064e3b]" />
+                  <Building2 className="h-6 w-6" />
                 )}
               </div>
               <p className="text-xs font-bold text-[#064e3b]">
@@ -262,7 +270,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* স্ট্যান্ডার্ড ফ্ল্যাট জিমেইল আইকন যুক্ত বাটন */}
+            {/* জিমেইল অথ বাটন */}
             <button
               type="button"
               onClick={loginWithGoogle}
@@ -292,15 +300,18 @@ export default function LoginPage() {
         )}
 
         {/* =========================================================
-            স্ক্রিন ৩: রোল সিলেকশন ও ভ্যালিডেশন স্ক্রিন (Conditional Logic)
+            স্ক্রিন ৩: রোল সিলেকশন ও ভ্যালিডেশন স্ক্রিন
            ========================================================= */}
         {user && !user.role && (
           <div className="space-y-5 pt-1 animate-in fade-in duration-200">
-            <div className="text-center space-y-1">
+            <div className="text-center space-y-1 bg-emerald-50/60 p-3 rounded-2xl border border-emerald-100">
               <p className="text-xs font-bold text-[#064e3b]">
                 স্বাগতম, {user.name}!
               </p>
-              <p className="text-[11px] text-slate-500 font-medium">
+              <p className="text-[11px] text-[#064e3b]/80 font-bold">
+                {selectedInstitution?.name || 'শিক্ষা প্রতিষ্ঠান'}
+              </p>
+              <p className="text-[10px] text-slate-500 font-medium">
                 আপনার পরিচয় ও ভূমিকা নিশ্চিত করুন
               </p>
             </div>
@@ -367,11 +378,11 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* ২. ডায়নামিক ইনপুট ফিল্ড (কন্ডিশনাল লজিক) */}
+              {/* ২. ডায়নামিক ইনপুট ফিল্ড (ইনস্টিটিউশন টাইপ অনুযায়ী প্লেসহোল্ডার) */}
               {selectedRole === 'student' ? (
                 <div className="space-y-1.5 animate-in fade-in duration-200">
                   <label className="text-xs font-bold text-slate-700">
-                    ইউআইডি (UID) লিখুন:
+                    ইউআইডি (UID) বা রোল লিখুন:
                   </label>
                   <input
                     type="text"
@@ -380,7 +391,13 @@ export default function LoginPage() {
                       setIdentifier(e.target.value);
                       if (errorMessage) setErrorMessage('');
                     }}
-                    placeholder="যেমন: STU-101 বা ১০১"
+                    placeholder={
+                      selectedInstitution?.type === 'school'
+                        ? 'যেমন: SCH-101, 101 বা আপনার স্কুল রোল'
+                        : selectedInstitution?.type === 'mohila_madrasa'
+                        ? 'যেমন: F-101, 101 বা আপনার আইডি'
+                        : 'যেমন: MAD-101, 101 বা আপনার কওমি রোল'
+                    }
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 focus:border-[#064e3b] focus:bg-white focus:outline-none transition shadow-2xs font-sans"
                     autoFocus
                     required
@@ -399,7 +416,11 @@ export default function LoginPage() {
                         setIdentifier(e.target.value);
                         if (errorMessage) setErrorMessage('');
                       }}
-                      placeholder="যেমন: TEA-101 বা ৪৭৬"
+                      placeholder={
+                        selectedInstitution?.type === 'school'
+                          ? 'যেমন: TEA-101 বা আপনার স্কুল শিক্ষক আইডি'
+                          : 'যেমন: TEA-101 বা আপনার উস্তাদ আইডি'
+                      }
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 focus:border-[#064e3b] focus:bg-white focus:outline-none transition shadow-2xs font-sans"
                       autoFocus
                       required
@@ -414,7 +435,7 @@ export default function LoginPage() {
                       type="text"
                       value={teacherName}
                       onChange={(e) => setTeacherName(e.target.value)}
-                      placeholder="যেমন: মাওলানা আব্দুল্লাহ"
+                      placeholder="যেমন: মোঃ আব্দুল্লাহ"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-900 focus:border-[#064e3b] focus:bg-white focus:outline-none transition shadow-2xs"
                     />
                   </div>
@@ -442,21 +463,20 @@ export default function LoginPage() {
                 ) : (
                   <>
                     <span>লগইন করুন</span>
-                    <ArrowRight className="h-4 w-4" />
+                    <ArrowRight size={16} />
                   </>
                 )}
               </button>
             </form>
 
-            {/* ৫. একাউন্ট পরিবর্তন */}
-            <div className="pt-2 border-t border-slate-100 flex justify-center">
+            <div className="text-center pt-2">
               <button
                 type="button"
                 onClick={logout}
-                className="text-xs text-slate-500 hover:text-rose-600 font-bold flex items-center gap-1.5 transition cursor-pointer py-1"
+                className="text-xs font-bold text-[#064e3b] hover:underline inline-flex items-center gap-1 cursor-pointer"
               >
-                <LogOut className="h-3.5 w-3.5 text-rose-500" />
-                <span>অন্য জিমেইল দিয়ে সাইন ইন করুন</span>
+                <LogOut size={13} className="text-rose-500" />
+                <span className="text-rose-600">অন্য জিমেইল দিয়ে সাইন ইন করুন</span>
               </button>
             </div>
           </div>
