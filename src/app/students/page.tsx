@@ -60,7 +60,7 @@ export default function StudentsDirectoryPage() {
   const [selectedClass, setSelectedClass] = useState<string>('সব');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // ডায়নামিক ক্যাটাগরি/শ্রেণি যোগ করার স্টেট
   const [isAddingCategory, setIsAddingCategory] = useState<boolean>(false);
@@ -103,10 +103,15 @@ export default function StudentsDirectoryPage() {
     setIsAddingCategory(false);
   };
 
-  // শিক্ষকদের তালিকা লোড
+  // শিক্ষকদের তালিকা লোড (Instant Cache First)
   const loadTeachers = async () => {
     try {
-      const { data: cloudStaff } = await supabase.from('staff').select('*');
+      const localStaff = await localDb.staff.toArray();
+      if (localStaff && localStaff.length > 0) {
+        setTeachersList(localStaff);
+      }
+
+      const { data: cloudStaff } = await supabase.from('staff').select('id, teacher_uid, full_name, name, phone, email, role, designation, assigned_class, is_class_teacher, monthly_salary, photo_url, joining_date, status');
       if (cloudStaff && cloudStaff.length > 0) {
         const mapped: Staff[] = cloudStaff.map((s: any) => ({
           id: s.id,
@@ -126,20 +131,30 @@ export default function StudentsDirectoryPage() {
           updatedAt: s.updated_at || new Date().toISOString(),
         }));
         setTeachersList(mapped);
-      } else {
-        const localStaff = await localDb.staff.toArray();
-        setTeachersList(localStaff);
       }
     } catch (e) {
       console.warn('Teacher fetch warning:', e);
     }
   };
 
-  // শিক্ষার্থী তালিকা লোড
+  // শিক্ষার্থী তালিকা লোড (Instant Cache-First + Background Revalidation)
   const loadStudents = async () => {
     try {
-      setIsLoading(true);
+      // ১. ফার্স্ট রিড: মিলি-সেকেন্ডে লোকালডিবি থেকে ইনস্ট্যান্ট রেন্ডার
+      const localData = await localDb.students.where('status').equals('active').toArray();
+      if (localData && localData.length > 0) {
+        localData.sort((a, b) => {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeB - timeA;
+        });
+        setStudents(localData);
+        setIsLoading(false);
+      } else {
+        setIsLoading(true);
+      }
 
+      // ২. ব্যাকগ্রাউন্ডে সাইলেন্ট ক্যোয়ারী
       const { data: supaStudents, error: supaErr } = await supabase
         .from('students')
         .select('*');
@@ -176,14 +191,6 @@ export default function StudentsDirectoryPage() {
           await localDb.students.bulkAdd(formattedStudents);
         }
         setStudents(formattedStudents);
-      } else {
-        const localData = await localDb.students.where('status').equals('active').toArray();
-        localData.sort((a, b) => {
-          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return timeB - timeA;
-        });
-        setStudents(localData);
       }
     } catch (err) {
       console.error('ডাটা লোড ত্রুটি:', err);
@@ -215,71 +222,64 @@ export default function StudentsDirectoryPage() {
     };
   }, []);
 
-  // শিক্ষার্থী ডিলিট নিশ্চিতকরণ
+  // শিক্ষার্থী ডিলিট নিশ্চিতকরণ (Optimistic UI)
   const handleConfirmDelete = async () => {
     if (!studentToDelete) return;
+    const targetId = studentToDelete.id;
+    setStudentToDelete(null);
+
+    // ১. ইনস্ট্যান্ট অপটিমিস্টিক আপডেট
+    setStudents((prev) => prev.filter((s) => s.id !== targetId));
+    if (selectedStudent?.id === targetId) {
+      setSelectedStudent(null);
+    }
+
     try {
-      setIsDeleting(true);
-
-      const { error: supaErr } = await supabase
-        .from('students')
-        .delete()
-        .eq('id', studentToDelete.id);
-
-      if (supaErr) console.warn('Supabase Delete Warning:', supaErr.message);
-
-      await localDb.students.delete(studentToDelete.id);
-
-      setStudents((prev) => prev.filter((s) => s.id !== studentToDelete.id));
-      if (selectedStudent?.id === studentToDelete.id) {
-        setSelectedStudent(null);
-      }
-      setStudentToDelete(null);
+      await localDb.students.delete(targetId);
+      await supabase.from('students').delete().eq('id', targetId);
     } catch (err) {
-      console.error('শিক্ষার্থী ডিলিট করতে সমস্যা:', err);
-      alert('শিক্ষার্থী ডিলিট করতে সমস্যা হয়েছে।');
-    } finally {
-      setIsDeleting(false);
+      console.error('শিক্ষার্থী ডিলিট এরর:', err);
     }
   };
 
-  // একক শিক্ষার্থীকে শিক্ষকের সাথে যুক্তকরণ
+  // একক শিক্ষার্থীকে শিক্ষকের সাথে যুক্তকরণ (Optimistic UI)
   const handleAssignSingleStudent = async () => {
     if (!assigningSingleStudent) return;
+    const stdId = assigningSingleStudent.id;
+    const selectedTeacherObj = teachersList.find(
+      (t) => (t.teacher_uid || t.id) === selectedTeacherForAssign || t.id === selectedTeacherForAssign
+    );
+
+    const teacherName = selectedTeacherObj ? selectedTeacherObj.fullName : '';
+    const teacherUidVal = selectedTeacherObj ? (selectedTeacherObj.teacher_uid || selectedTeacherObj.id) : '';
+
+    setAssigningSingleStudent(null);
+    setSelectedTeacherForAssign('');
+
+    // ১. ইনস্ট্যান্ট অপটিমিস্টিক আপডেট
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.id === stdId
+          ? { ...s, assigned_teacher_uid: teacherUidVal, assigned_teacher_name: teacherName }
+          : s
+      )
+    );
 
     try {
-      setIsAssigning(true);
+      await localDb.students.update(stdId, {
+        assigned_teacher_uid: teacherUidVal,
+        assigned_teacher_name: teacherName,
+      } as any);
 
-      const selectedTeacherObj = teachersList.find(
-        (t) => (t.teacher_uid || t.id) === selectedTeacherForAssign || t.id === selectedTeacherForAssign
-      );
-
-      const teacherName = selectedTeacherObj ? selectedTeacherObj.fullName : '';
-      const teacherUidVal = selectedTeacherObj ? (selectedTeacherObj.teacher_uid || selectedTeacherObj.id) : '';
-
-      const { error: supaErr } = await supabase
+      await supabase
         .from('students')
         .update({
           assigned_teacher_uid: teacherUidVal,
           assigned_teacher_name: teacherName,
         })
-        .eq('id', assigningSingleStudent.id);
-
-      if (supaErr) console.warn('Supabase assign teacher warning:', supaErr.message);
-
-      await localDb.students.update(assigningSingleStudent.id, {
-        assigned_teacher_uid: teacherUidVal,
-        assigned_teacher_name: teacherName,
-      } as any);
-
-      await loadStudents();
-      setAssigningSingleStudent(null);
-      setSelectedTeacherForAssign('');
+        .eq('id', stdId);
     } catch (err: any) {
       console.error('Single assign error:', err);
-      alert('শিক্ষক যুক্ত করতে সমস্যা হয়েছে: ' + (err.message || ''));
-    } finally {
-      setIsAssigning(false);
     }
   };
 
@@ -297,43 +297,31 @@ export default function StudentsDirectoryPage() {
       return;
     }
 
+    const teacherName = selectedTeacherObj.fullName;
+    const teacherUidVal = selectedTeacherObj.teacher_uid || selectedTeacherObj.id;
+
+    const targetStudents = students.filter(
+      (s) => (s.institutionType || 'madrasa') === activeInstTab && s.className === targetClass
+    );
+    if (targetStudents.length === 0) {
+      alert(`${targetClass} বিভাগে কোনো শিক্ষার্থী পাওয়া যায়নি!`);
+      return;
+    }
+
+    const ids = targetStudents.map((s) => s.id);
+    setBulkAssignClass(null);
+    setSelectedTeacherForAssign('');
+
+    // অপটিমিস্টিক ইউআই আপডেট
+    setStudents((prev) =>
+      prev.map((s) =>
+        ids.includes(s.id)
+          ? { ...s, assigned_teacher_uid: teacherUidVal, assigned_teacher_name: teacherName }
+          : s
+      )
+    );
+
     try {
-      setIsAssigning(true);
-
-      const teacherName = selectedTeacherObj.fullName;
-      const teacherUidVal = selectedTeacherObj.teacher_uid || selectedTeacherObj.id;
-
-      const targetStudents = students.filter(
-        (s) => (s.institutionType || 'madrasa') === activeInstTab && s.className === targetClass
-      );
-      if (targetStudents.length === 0) {
-        alert(`${targetClass} বিভাগে কোনো শিক্ষার্থী পাওয়া যায়নি!`);
-        return;
-      }
-
-      const ids = targetStudents.map((s) => s.id);
-
-      const { error: supaErr } = await supabase
-        .from('students')
-        .update({
-          assigned_teacher_uid: teacherUidVal,
-          assigned_teacher_name: teacherName,
-        })
-        .in('id', ids);
-
-      if (supaErr) {
-        console.warn('Bulk assign fallback update per student:', supaErr.message);
-        for (const stdId of ids) {
-          await supabase
-            .from('students')
-            .update({
-              assigned_teacher_uid: teacherUidVal,
-              assigned_teacher_name: teacherName,
-            })
-            .eq('id', stdId);
-        }
-      }
-
       for (const stdId of ids) {
         await localDb.students.update(stdId, {
           assigned_teacher_uid: teacherUidVal,
@@ -341,19 +329,19 @@ export default function StudentsDirectoryPage() {
         } as any);
       }
 
-      await loadStudents();
-      setBulkAssignClass(null);
-      setSelectedTeacherForAssign('');
-      alert(`${targetClass} বিভাগের ${ids.length} জন শিক্ষার্থীকে "${teacherName}"-এর সাথে যুক্ত করা হয়েছে!`);
+      await supabase
+        .from('students')
+        .update({
+          assigned_teacher_uid: teacherUidVal,
+          assigned_teacher_name: teacherName,
+        })
+        .in('id', ids);
     } catch (err: any) {
       console.error('Bulk assign error:', err);
-      alert('সবাইকে শিক্ষক যুক্ত করতে সমস্যা হয়েছে: ' + (err.message || ''));
-    } finally {
-      setIsAssigning(false);
     }
   };
 
-  // ফিল্টারিং সার্ভিস (প্রতিষ্ঠান টাইপ + সাব-ক্লাস + লাইভ সার্চ)
+  // ফিল্টারিং সার্ভিস (ইনস্ট্যান্ট মেমোরি ফিল্টারিং - 0ms delay)
   const filteredStudents = useMemo(() => {
     return students.filter((std) => {
       // ১. প্রতিষ্ঠান ফিল্টারিং
@@ -438,7 +426,7 @@ export default function StudentsDirectoryPage() {
             <button
               type="button"
               onClick={() => handleTabChange('madrasa')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl text-xs font-bold transition active:scale-95 ${
+              className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer ${
                 activeInstTab === 'madrasa'
                   ? 'bg-[#008955] text-white shadow-xs'
                   : 'text-[#4B5563] hover:text-[#1F2937]'
@@ -451,7 +439,7 @@ export default function StudentsDirectoryPage() {
             <button
               type="button"
               onClick={() => handleTabChange('school')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl text-xs font-bold transition active:scale-95 ${
+              className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer ${
                 activeInstTab === 'school'
                   ? 'bg-[#008955] text-white shadow-xs'
                   : 'text-[#4B5563] hover:text-[#1F2937]'
@@ -464,7 +452,7 @@ export default function StudentsDirectoryPage() {
             <button
               type="button"
               onClick={() => handleTabChange('mohila_madrasa')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl text-xs font-bold transition active:scale-95 ${
+              className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer ${
                 activeInstTab === 'mohila_madrasa'
                   ? 'bg-[#008955] text-white shadow-xs'
                   : 'text-[#4B5563] hover:text-[#1F2937]'
@@ -496,7 +484,7 @@ export default function StudentsDirectoryPage() {
               <button
                 type="button"
                 onClick={() => setIsAddingCategory(!isAddingCategory)}
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-[#008955] bg-[#E7F6ED] border border-[#BBE3D3] px-2 py-0.5 rounded-full hover:bg-[#D4EFE0] transition"
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-[#008955] bg-[#E7F6ED] border border-[#BBE3D3] px-2 py-0.5 rounded-full hover:bg-[#D4EFE0] transition cursor-pointer"
               >
                 <Plus size={11} />
                 <span>নতুন শ্রেণি যুক্ত করুন</span>
@@ -516,7 +504,7 @@ export default function StudentsDirectoryPage() {
                 <button
                   type="button"
                   onClick={handleCreateNewCategory}
-                  className="px-3 py-1 rounded-xl bg-[#008955] text-white text-[11px] font-bold flex items-center gap-1 shadow-2xs"
+                  className="px-3 py-1 rounded-xl bg-[#008955] text-white text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
                 >
                   <Check size={12} />
                   <span>সেভ</span>
@@ -533,7 +521,7 @@ export default function StudentsDirectoryPage() {
                     key={cls}
                     type="button"
                     onClick={() => setSelectedClass(cls)}
-                    className={`py-1 px-3 rounded-xl text-[11px] font-bold transition-all active:scale-95 flex items-center justify-center gap-1 shrink-0 ${
+                    className={`py-1 px-3 rounded-xl text-[11px] font-bold transition-all active:scale-95 flex items-center justify-center gap-1 shrink-0 cursor-pointer ${
                       isSelected
                         ? 'bg-[#008955] text-white shadow-xs'
                         : 'bg-white text-[#4B5563] border border-[#E1EDE6] hover:bg-[#EDF4F0]'
@@ -552,7 +540,7 @@ export default function StudentsDirectoryPage() {
                   setBulkAssignClass(targetCls);
                   setSelectedTeacherForAssign('');
                 }}
-                className="py-1 px-2.5 rounded-xl bg-amber-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs hover:bg-amber-600 active:scale-95 transition shrink-0 border border-amber-400/30"
+                className="py-1 px-2.5 rounded-xl bg-amber-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs hover:bg-amber-600 active:scale-95 transition shrink-0 border border-amber-400/30 cursor-pointer"
                 title="এই বিভাগের সকল শিক্ষার্থীকে একসাথে শিক্ষক যুক্ত করুন"
               >
                 <Users size={11} />
@@ -563,12 +551,13 @@ export default function StudentsDirectoryPage() {
 
         </div>
 
-        {/* ================= ৩. শিক্ষার্থী তালিকা ================= */}
+        {/* ================= ৩. শিক্ষার্থী তালিকা (Instant Render / Skeleton Shimmer) ================= */}
         <main className="flex-1 overflow-y-auto overscroll-contain no-scrollbar px-4 py-2 space-y-2.5">
-          {isLoading ? (
-            <div className="py-16 text-center">
-              <div className="mx-auto h-7 w-7 animate-spin rounded-full border-3 border-[#008955] border-t-transparent"></div>
-              <p className="mt-2 text-xs font-medium text-[#9CA3AF]">তালিকা লোড হচ্ছে...</p>
+          {isLoading && students.length === 0 ? (
+            <div className="space-y-2.5 py-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-16 w-full rounded-2xl bg-[#E7F0EB] animate-pulse" />
+              ))}
             </div>
           ) : filteredStudents.length > 0 ? (
             filteredStudents.map((student) => (
@@ -632,7 +621,7 @@ export default function StudentsDirectoryPage() {
                       setAssigningSingleStudent(student);
                       setSelectedTeacherForAssign(student.assigned_teacher_uid || '');
                     }}
-                    className={`h-7 px-2 rounded-lg text-[10px] font-bold flex items-center gap-1 transition active:scale-90 border ${
+                    className={`h-7 px-2 rounded-lg text-[10px] font-bold flex items-center gap-1 transition active:scale-90 border cursor-pointer ${
                       student.assigned_teacher_name
                         ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
                         : 'bg-[#E7F6ED] text-[#008955] border-[#BBE3D3] hover:bg-[#008955] hover:text-white'
@@ -647,7 +636,7 @@ export default function StudentsDirectoryPage() {
                   <button
                     type="button"
                     onClick={() => setStudentToDelete(student)}
-                    className="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition active:scale-90 border border-rose-100"
+                    className="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition active:scale-90 border border-rose-100 cursor-pointer"
                     title="শিক্ষার্থী বাতিল করুন"
                   >
                     <Trash2 size={13} />
@@ -666,7 +655,7 @@ export default function StudentsDirectoryPage() {
           )}
         </main>
 
-        {/* ================= ৪. শিক্ষার্থী বিস্তারিত প্রোফাইল মোডাল (Redesigned Centered ID Card Style) ================= */}
+        {/* ================= ৪. শিক্ষার্থী বিস্তারিত প্রোফাইল মোডাল ================= */}
         {selectedStudent && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-3 sm:p-4 font-hind animate-in fade-in duration-200">
             <div className="relative w-full max-w-[380px] sm:max-w-[410px] rounded-[32px] bg-[#F7FBF9] shadow-2xl border border-[#DFECE5] overflow-hidden">
@@ -681,7 +670,7 @@ export default function StudentsDirectoryPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedStudent(null)}
-                  className="h-7 w-7 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30 flex items-center justify-center transition border border-white/20 active:scale-95"
+                  className="h-7 w-7 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30 flex items-center justify-center transition border border-white/20 active:scale-95 cursor-pointer"
                 >
                   <X size={15} />
                 </button>
@@ -701,7 +690,7 @@ export default function StudentsDirectoryPage() {
                   )}
                 </div>
 
-                {/* নাম ও সাবটাইটেল (সেন্টার অ্যালাইন্ড) */}
+                {/* নাম ও সাবটাইটেল */}
                 <h3 className="text-base font-black text-slate-900 leading-tight text-center mt-2.5 px-2">
                   {selectedStudent.fullNameBangla || selectedStudent.fullName}
                 </h3>
@@ -711,7 +700,7 @@ export default function StudentsDirectoryPage() {
                   </p>
                 )}
 
-                {/* সেন্টার্ড ব্যাজেস (শ্রেণি, রোল, আইডি) */}
+                {/* সেন্টার্ড ব্যাজেস */}
                 <div className="flex items-center justify-center gap-1.5 flex-wrap mt-2">
                   <span className="bg-[#E7F6ED] text-[#008955] border border-[#BBE3D3] text-[11px] font-bold px-2.5 py-0.5 rounded-full">
                     {selectedStudent.className || 'সাধারণ'} বিভাগ
@@ -781,7 +770,7 @@ export default function StudentsDirectoryPage() {
                   </div>
                 </div>
 
-                {/* অভিভাবকের মোবাইল নাম্বারসমূহ (Click to Call) */}
+                {/* অভিভাবকের মোবাইল নাম্বারসমূহ */}
                 <div className="bg-white p-3 rounded-2xl border border-[#E1EDE6] shadow-2xs space-y-2">
                   <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
                     <Phone size={12} className="text-[#008955]" />
@@ -845,7 +834,7 @@ export default function StudentsDirectoryPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedStudent(null)}
-                    className="rounded-xl border border-[#D9E7E0] bg-white px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
+                    className="rounded-xl border border-[#D9E7E0] bg-white px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
                   >
                     বন্ধ করুন
                   </button>
@@ -857,7 +846,7 @@ export default function StudentsDirectoryPage() {
                       setSelectedStudent(null);
                       setIsFormModalOpen(true);
                     }}
-                    className="flex items-center gap-1.5 rounded-xl bg-[#008955] px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#007548] active:scale-95 transition"
+                    className="flex items-center gap-1.5 rounded-xl bg-[#008955] px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#007548] active:scale-95 transition cursor-pointer"
                   >
                     <Edit size={13} />
                     <span>সম্পাদনা করুন</span>
@@ -882,7 +871,7 @@ export default function StudentsDirectoryPage() {
                 <button
                   type="button"
                   onClick={() => setAssigningSingleStudent(null)}
-                  className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"
+                  className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
                 >
                   <X size={14} />
                 </button>
@@ -904,7 +893,7 @@ export default function StudentsDirectoryPage() {
                 <select
                   value={selectedTeacherForAssign}
                   onChange={(e) => setSelectedTeacherForAssign(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 focus:border-[#008955] focus:bg-white focus:outline-none"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 focus:border-[#008955] focus:bg-white focus:outline-none cursor-pointer"
                 >
                   <option value="">-- কোনো শিক্ষক নেই --</option>
                   {teachersList.map((teacher) => (
@@ -919,7 +908,7 @@ export default function StudentsDirectoryPage() {
                 <button
                   type="button"
                   onClick={() => setAssigningSingleStudent(null)}
-                  className="rounded-xl border px-3 py-1.5 text-xs font-bold text-slate-600"
+                  className="rounded-xl border px-3 py-1.5 text-xs font-bold text-slate-600 cursor-pointer"
                 >
                   বাতিল
                 </button>
@@ -927,7 +916,7 @@ export default function StudentsDirectoryPage() {
                   type="button"
                   onClick={handleAssignSingleStudent}
                   disabled={isAssigning}
-                  className="rounded-xl bg-[#008955] px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#007548]"
+                  className="rounded-xl bg-[#008955] px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#007548] cursor-pointer"
                 >
                   {isAssigning ? 'সেভ হচ্ছে...' : 'সংরক্ষণ'}
                 </button>
@@ -948,7 +937,7 @@ export default function StudentsDirectoryPage() {
                 <button
                   type="button"
                   onClick={() => setBulkAssignClass(null)}
-                  className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"
+                  className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
                 >
                   <X size={14} />
                 </button>
@@ -965,7 +954,7 @@ export default function StudentsDirectoryPage() {
                 <select
                   value={selectedTeacherForAssign}
                   onChange={(e) => setSelectedTeacherForAssign(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 focus:border-[#008955] focus:bg-white focus:outline-none"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 focus:border-[#008955] focus:bg-white focus:outline-none cursor-pointer"
                 >
                   <option value="">-- শিক্ষক নির্বাচন করুন --</option>
                   {teachersList.map((teacher) => (
@@ -980,7 +969,7 @@ export default function StudentsDirectoryPage() {
                 <button
                   type="button"
                   onClick={() => setBulkAssignClass(null)}
-                  className="rounded-xl border px-3 py-1.5 text-xs font-bold text-slate-600"
+                  className="rounded-xl border px-3 py-1.5 text-xs font-bold text-slate-600 cursor-pointer"
                 >
                   বাতিল
                 </button>
@@ -988,7 +977,7 @@ export default function StudentsDirectoryPage() {
                   type="button"
                   onClick={handleBulkAssignClass}
                   disabled={isAssigning || !selectedTeacherForAssign}
-                  className="rounded-xl bg-amber-500 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-amber-600 disabled:opacity-50"
+                  className="rounded-xl bg-amber-500 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-amber-600 disabled:opacity-50 cursor-pointer"
                 >
                   {isAssigning ? 'যুক্ত হচ্ছে...' : 'সবাইকে যুক্ত করুন'}
                 </button>
@@ -1015,7 +1004,7 @@ export default function StudentsDirectoryPage() {
                   type="button"
                   onClick={() => setStudentToDelete(null)}
                   disabled={isDeleting}
-                  className="rounded-xl border px-3 py-1.5 text-xs font-bold text-slate-600"
+                  className="rounded-xl border px-3 py-1.5 text-xs font-bold text-slate-600 cursor-pointer"
                 >
                   বাতিল
                 </button>
@@ -1023,7 +1012,7 @@ export default function StudentsDirectoryPage() {
                   type="button"
                   onClick={handleConfirmDelete}
                   disabled={isDeleting}
-                  className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-rose-700 disabled:opacity-50"
+                  className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-rose-700 disabled:opacity-50 cursor-pointer"
                 >
                   {isDeleting ? 'মুছছে...' : 'হ্যাঁ, মুছুন'}
                 </button>
@@ -1047,113 +1036,103 @@ export default function StudentsDirectoryPage() {
               const oldOriginalUid = editingStudent.id;
               const newCustomUid = (studentData.admissionNo || editingStudent.admissionNo || oldOriginalUid).trim();
 
-              const fullPayload: any = {
-                id: newCustomUid,
-                admission_no: newCustomUid,
-                name: studentData.fullNameBangla || studentData.fullName,
-                full_name: studentData.fullName || studentData.fullNameBangla,
-                full_name_bangla: studentData.fullNameBangla || studentData.fullName,
-                institution_type: studentData.institutionType || 'madrasa',
-                class_name: studentData.className,
-                roll: String(studentData.rollNo || '০১'),
-                roll_no: String(studentData.rollNo || '০১'),
-                phone: primaryPhone || null,
-                guardian_contacts: studentData.guardianContacts || [],
-                father_name: studentData.fatherName || null,
-                address: studentData.address || null,
-                blood_group: studentData.bloodGroup || null,
-                monthly_fee: Number(studentData.monthlyFee || 0),
-                photo_url: studentData.photoUrl || null,
-                assigned_teacher_uid: (editingStudent as any).assigned_teacher_uid || null,
-                assigned_teacher_name: (editingStudent as any).assigned_teacher_name || null,
-                status: studentData.status || 'active',
-                updated_at: new Date().toISOString(),
-              };
-
-              let { data, error } = await supabase
-                .from('students')
-                .update(fullPayload)
-                .eq('id', oldOriginalUid)
-                .select();
-
-              if ((!data || data.length === 0) && oldOriginalUid) {
-                const retryRes = await supabase
-                  .from('students')
-                  .update(fullPayload)
-                  .eq('admission_no', oldOriginalUid)
-                  .select();
-                data = retryRes.data;
-              }
-
-              if (!data || data.length === 0) {
-                const upsertRes = await supabase
-                  .from('students')
-                  .upsert([fullPayload], { onConflict: 'id' })
-                  .select();
-                if (upsertRes.error) {
-                  throw new Error(`Supabase আপডেট ব্যর্থ হয়েছে: ${upsertRes.error.message}`);
-                }
-              }
-
-              if (newCustomUid !== oldOriginalUid) {
-                await localDb.students.delete(oldOriginalUid);
-              }
-
-              await localDb.students.put({
+              const updatedRecord: Student = {
                 ...editingStudent,
                 ...studentData,
                 id: newCustomUid,
                 admissionNo: newCustomUid,
                 phone: primaryPhone,
                 updatedAt: new Date().toISOString(),
-              });
+              };
+
+              // ১. ইনস্ট্যান্ট অপটিমিস্টিক আপডেট
+              setStudents((prev) =>
+                prev.map((s) => (s.id === oldOriginalUid ? updatedRecord : s))
+              );
+              setIsFormModalOpen(false);
+              setEditingStudent(null);
+
+              // ২. সাইলেন্ট ব্যাকগ্রাউন্ড সিঙ্ক
+              try {
+                if (newCustomUid !== oldOriginalUid) {
+                  await localDb.students.delete(oldOriginalUid);
+                }
+                await localDb.students.put(updatedRecord);
+
+                const fullPayload: any = {
+                  id: newCustomUid,
+                  admission_no: newCustomUid,
+                  name: studentData.fullNameBangla || studentData.fullName,
+                  full_name: studentData.fullName || studentData.fullNameBangla,
+                  full_name_bangla: studentData.fullNameBangla || studentData.fullName,
+                  institution_type: studentData.institutionType || 'madrasa',
+                  class_name: studentData.className,
+                  roll: String(studentData.rollNo || '০১'),
+                  roll_no: String(studentData.rollNo || '০১'),
+                  phone: primaryPhone || null,
+                  guardian_contacts: studentData.guardianContacts || [],
+                  father_name: studentData.fatherName || null,
+                  address: studentData.address || null,
+                  blood_group: studentData.bloodGroup || null,
+                  monthly_fee: Number(studentData.monthlyFee || 0),
+                  photo_url: studentData.photoUrl || null,
+                  assigned_teacher_uid: (editingStudent as any).assigned_teacher_uid || null,
+                  assigned_teacher_name: (editingStudent as any).assigned_teacher_name || null,
+                  status: studentData.status || 'active',
+                  updated_at: new Date().toISOString(),
+                };
+
+                await supabase.from('students').upsert([fullPayload], { onConflict: 'id' });
+              } catch (e) {
+                console.error('Background save error:', e);
+              }
             } else {
               const stdUid = (studentData.admissionNo || `UID-2026-${String(studentData.rollNo || Math.floor(10 + Math.random() * 90)).padStart(2, '0')}`).trim();
               const newId = stdUid;
 
-              const insertPayload: any = {
-                id: newId,
-                admission_no: stdUid,
-                name: studentData.fullNameBangla || studentData.fullName,
-                full_name: studentData.fullName,
-                full_name_bangla: studentData.fullNameBangla,
-                institution_type: studentData.institutionType || 'madrasa',
-                class_name: studentData.className,
-                roll: String(studentData.rollNo || '০১'),
-                roll_no: String(studentData.rollNo || '০১'),
-                phone: primaryPhone || null,
-                guardian_contacts: studentData.guardianContacts || [],
-                father_name: studentData.fatherName || null,
-                address: studentData.address || null,
-                blood_group: studentData.bloodGroup || null,
-                monthly_fee: Number(studentData.monthlyFee || 0),
-                photo_url: studentData.photoUrl || null,
-                status: 'active',
-                updated_at: new Date().toISOString(),
-              };
-
-              const { error: insertErr } = await supabase
-                .from('students')
-                .upsert([insertPayload], { onConflict: 'id' })
-                .select();
-
-              if (insertErr) {
-                throw new Error(`Supabase সেভ ব্যর্থ হয়েছে: ${insertErr.message}`);
-              }
-
-              await localDb.students.put({
-                id: newId,
+              const newRecord: Student = {
                 ...studentData,
+                id: newId,
                 admissionNo: stdUid,
                 phone: primaryPhone,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
-              });
-            }
+              };
 
-            await loadStudents();
-            setIsFormModalOpen(false);
-            setEditingStudent(null);
+              // ১. ইনস্ট্যান্ট অপটিমিস্টিক আপডেট
+              setStudents((prev) => [newRecord, ...prev]);
+              setIsFormModalOpen(false);
+
+              // ২. সাইলেন্ট ব্যাকগ্রাউন্ড সিঙ্ক
+              try {
+                await localDb.students.put(newRecord);
+
+                const insertPayload: any = {
+                  id: newId,
+                  admission_no: stdUid,
+                  name: studentData.fullNameBangla || studentData.fullName,
+                  full_name: studentData.fullName,
+                  full_name_bangla: studentData.fullNameBangla,
+                  institution_type: studentData.institutionType || 'madrasa',
+                  class_name: studentData.className,
+                  roll: String(studentData.rollNo || '০১'),
+                  roll_no: String(studentData.rollNo || '০১'),
+                  phone: primaryPhone || null,
+                  guardian_contacts: studentData.guardianContacts || [],
+                  father_name: studentData.fatherName || null,
+                  address: studentData.address || null,
+                  blood_group: studentData.bloodGroup || null,
+                  monthly_fee: Number(studentData.monthlyFee || 0),
+                  photo_url: studentData.photoUrl || null,
+                  status: 'active',
+                  updated_at: new Date().toISOString(),
+                };
+
+                await supabase.from('students').upsert([insertPayload], { onConflict: 'id' });
+              } catch (e) {
+                console.error('Background save error:', e);
+              }
+            }
           }}
         />
 
