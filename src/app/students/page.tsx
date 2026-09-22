@@ -191,9 +191,8 @@ export default function StudentsDirectoryPage() {
           updatedAt: s.updated_at || s.updatedAt,
         }));
 
-        await localDb.students.clear();
         if (formattedStudents.length > 0) {
-          await localDb.students.bulkAdd(formattedStudents);
+          await localDb.students.bulkPut(formattedStudents);
         }
         setStudents(formattedStudents);
       }

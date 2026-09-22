@@ -184,8 +184,7 @@ export default function StaffPage() {
       let formattedStaff: Staff[] = Array.from(cloudStaffMap.values());
 
       if (formattedStaff.length > 0) {
-        await localDb.staff.clear();
-        await localDb.staff.bulkAdd(formattedStaff);
+        await localDb.staff.bulkPut(formattedStaff);
         setStaffList(formattedStaff);
       } else {
         // ক্লাউড খালি হলে লোকালডিবি থেকে ফেচ ও ক্লাউডে ব্যাকগ্রাউন্ড অটো-সিঙ্ক

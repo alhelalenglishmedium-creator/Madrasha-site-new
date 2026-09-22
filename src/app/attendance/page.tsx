@@ -166,7 +166,6 @@ export default function AttendancePage() {
 
       const { data: cloudAttendance } = await supabase.from('attendance').select('*');
       if (cloudAttendance && cloudAttendance.length > 0) {
-        await localDb.attendance.clear();
         const mappedRecords: AttendanceRecord[] = cloudAttendance.map((c: any) => ({
           id: c.id || `att_${c.student_id}_${c.date}`,
           studentId: c.student_id,
@@ -177,7 +176,7 @@ export default function AttendancePage() {
           synced: true,
           createdAt: c.created_at,
         }));
-        await localDb.attendance.bulkAdd(mappedRecords);
+        await localDb.attendance.bulkPut(mappedRecords);
       }
 
       const allRecords = await localDb.attendance.toArray();

@@ -235,9 +235,8 @@ export function TeacherDashboard() {
             }));
 
             // LocalDb সিঙ্ক
-            await localDb.students.clear();
             if (mappedStudents.length > 0) {
-              await localDb.students.bulkAdd(mappedStudents);
+              await localDb.students.bulkPut(mappedStudents);
             }
 
             if (matchedTeacher) {
