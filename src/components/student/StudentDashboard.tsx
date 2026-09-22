@@ -920,9 +920,17 @@ export function StudentDashboard() {
                 </div>
 
                 {isTodayRoutineLoading ? (
-                  <div className="py-4 text-center text-xs text-slate-400">
-                    <Loader2 size={16} className="animate-spin mx-auto text-[#008955] mb-1" />
-                    <span>আজকের রুটিন লোড হচ্ছে...</span>
+                  <div className="space-y-2 py-1">
+                    <div className="h-12 bg-slate-100 animate-pulse rounded-xl border border-slate-200/60 p-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-5 w-16 bg-slate-200 rounded-md" />
+                        <div className="space-y-1">
+                          <div className="h-3 w-28 bg-slate-200 rounded" />
+                          <div className="h-2 w-20 bg-slate-200 rounded" />
+                        </div>
+                      </div>
+                      <div className="h-4 w-12 bg-slate-200/80 rounded-full" />
+                    </div>
                   </div>
                 ) : todayRoutines.length > 0 ? (
                   <div className="space-y-2 text-xs">
@@ -1014,9 +1022,24 @@ export function StudentDashboard() {
               </div>
 
               {isResultLoading ? (
-                <div className="py-20 text-center">
-                  <div className="mx-auto h-8 w-8 animate-spin rounded-full border-3 border-emerald-600 border-t-transparent"></div>
-                  <p className="mt-2 text-xs font-medium text-slate-500">একাডেমিক ফলাফল লোড হচ্ছে...</p>
+                <div className="space-y-3 py-2 animate-pulse">
+                  <div className="h-28 rounded-3xl bg-slate-200/70 p-4 border border-slate-200 flex flex-col justify-between">
+                    <div className="h-4 w-32 bg-slate-300/80 rounded-lg" />
+                    <div className="flex justify-between items-center">
+                      <div className="h-8 w-24 bg-slate-300/80 rounded-xl" />
+                      <div className="h-8 w-20 bg-slate-300/80 rounded-xl" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-12 rounded-2xl bg-white border border-slate-200/80 p-3 flex justify-between items-center">
+                      <div className="h-4 w-36 bg-slate-200 rounded-md" />
+                      <div className="h-5 w-16 bg-slate-200 rounded-md" />
+                    </div>
+                    <div className="h-12 rounded-2xl bg-white border border-slate-200/80 p-3 flex justify-between items-center">
+                      <div className="h-4 w-40 bg-slate-200 rounded-md" />
+                      <div className="h-5 w-16 bg-slate-200 rounded-md" />
+                    </div>
+                  </div>
                 </div>
               ) : currentDisplayedExam ? (
                 <>
