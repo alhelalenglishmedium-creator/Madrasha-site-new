@@ -230,7 +230,33 @@ export function AdminResultModal({
       const { error } = await supabase.from('exam_results').upsert([payload], { onConflict: 'id' });
       if (error) throw error;
 
-      onSuccess(`${activeStudent.fullNameBangla || activeStudent.fullName}-এর নম্বর সংরক্ষণ ও প্রকাশ করা হয়েছে!`);
+      // ক্লাসের সকল শিক্ষার্থীর মেধা স্থান (Merit Position) অটো-র‍্যাঙ্কিং পুনঃগণনা
+      try {
+        const activeCls = activeStudent.className || 'সাধারণ';
+        const { data: allClassExamResults } = await supabase
+          .from('exam_results')
+          .select('*')
+          .eq('class_name', activeCls)
+          .eq('exam_name', examName);
+
+        if (allClassExamResults && allClassExamResults.length > 0) {
+          const sortedResults = [...allClassExamResults].sort(
+            (a, b) => Number(b.obtained_marks || 0) - Number(a.obtained_marks || 0)
+          );
+
+          const rankUpdates = sortedResults.map((rec, rankIdx) => ({
+            ...rec,
+            position: rankIdx + 1,
+            updated_at: new Date().toISOString(),
+          }));
+
+          await supabase.from('exam_results').upsert(rankUpdates);
+        }
+      } catch (rankErr) {
+        console.warn('Rank recalculation warning:', rankErr);
+      }
+
+      onSuccess(`${activeStudent.fullNameBangla || activeStudent.fullName}-এর নম্বর ও মেধা স্থান প্রকাশিত হয়েছে!`);
       setActiveStudent(null);
     } catch (err: any) {
       console.error('Save result error:', err);
