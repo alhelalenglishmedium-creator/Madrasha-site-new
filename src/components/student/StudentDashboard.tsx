@@ -24,6 +24,7 @@ import {
   Medal,
   ChevronDown,
   ArrowLeft,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useInstitution } from '@/context/InstitutionContext';
@@ -116,6 +117,8 @@ export function StudentDashboard() {
   const [isFeePaidThisMonth, setIsFeePaidThisMonth] = useState<boolean>(false);
   const [latestNotice, setLatestNotice] = useState<Notice | null>(null);
   const [studentNoticesList, setStudentNoticesList] = useState<Notice[]>([]);
+  const [todayRoutines, setTodayRoutines] = useState<any[]>([]);
+  const [isTodayRoutineLoading, setIsTodayRoutineLoading] = useState<boolean>(true);
 
   // ফলাফল ও হিস্ট্রি স্টেট
   const [examResultsList, setExamResultsList] = useState<ExamResult[]>([]);
@@ -399,6 +402,40 @@ export function StudentDashboard() {
           }
         } catch (e) {
           console.warn('Student notice fetch error:', e);
+        }
+
+        // ৩.৫. আজকের ক্লাসের সময়সূচি লোড (এডমিন ডেটা)
+        try {
+          setIsTodayRoutineLoading(true);
+          const daysBengali = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+          const todayDay = daysBengali[new Date().getDay()];
+          const activeCls = String(activeClassName || currentStudent?.className || '').trim();
+
+          const { data: supaRoutines, error: rErr } = await supabase
+            .from('class_routines')
+            .select('*')
+            .eq('class_name', activeCls)
+            .eq('day', todayDay)
+            .order('created_at', { ascending: true });
+
+          if (!rErr && supaRoutines && supaRoutines.length > 0) {
+            setTodayRoutines(supaRoutines);
+          } else {
+            const cachedKey = `madrasa_routine_${activeCls}`;
+            const cached = localStorage.getItem(cachedKey);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              const filteredToday = parsed.filter((r: any) => r.day === todayDay || r.day === 'আজকের দিন');
+              setTodayRoutines(filteredToday);
+            } else {
+              setTodayRoutines([]);
+            }
+          }
+        } catch (e) {
+          console.warn('Today routine fetch warning:', e);
+          setTodayRoutines([]);
+        } finally {
+          setIsTodayRoutineLoading(false);
         }
 
         // ৪. পরীক্ষার ফলাফল
@@ -866,51 +903,76 @@ export function StudentDashboard() {
                 </div>
               </div>
 
-              {/* আজকের ক্লাসের সময়সূচি */}
+              {/* আজকের ক্লাসের সময়সূচি (সম্পূর্ণ এডমিন ডাটাবেজ ডাইনামিক) */}
               <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 space-y-2.5 shadow-xs">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#008955] animate-pulse" />
                     <span className="text-xs font-bold text-slate-900">আজকের ক্লাসের সময়সূচি</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setIsRoutineOpen(true)}
-                    className="text-[11px] text-emerald-700 font-bold hover:underline cursor-pointer"
+                    className="text-[11px] text-[#008955] font-bold hover:underline cursor-pointer"
                   >
                     সম্পূর্ণ দেখুন
                   </button>
                 </div>
 
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-emerald-50/80 to-teal-50/50 border border-emerald-200/60">
-                    <div className="flex items-center gap-2.5">
-                      <span className="font-sans font-bold text-white text-[10px] bg-gradient-to-r from-emerald-600 to-teal-600 px-2 py-0.5 rounded-md shadow-xs">
-                        06:00 AM
-                      </span>
-                      <div>
-                        <p className="font-bold text-slate-900 text-xs leading-tight">হিফজুল কুরআন (তিলাওয়াত)</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">ক্বারী মাওলানা আব্দুল হক</p>
-                      </div>
-                    </div>
-                    <span className="text-[9px] font-extrabold text-emerald-800 bg-emerald-100/90 border border-emerald-300/60 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Zap className="w-2.5 h-2.5 text-emerald-600 fill-emerald-600" /> চলমান
-                    </span>
+                {isTodayRoutineLoading ? (
+                  <div className="py-4 text-center text-xs text-slate-400">
+                    <Loader2 size={16} className="animate-spin mx-auto text-[#008955] mb-1" />
+                    <span>আজকের রুটিন লোড হচ্ছে...</span>
                   </div>
+                ) : todayRoutines.length > 0 ? (
+                  <div className="space-y-2 text-xs">
+                    {todayRoutines.map((routine, idx) => (
+                      <div
+                        key={routine.id || idx}
+                        className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
+                          idx === 0
+                            ? 'bg-gradient-to-r from-emerald-50/90 to-teal-50/60 border-emerald-200/80'
+                            : 'bg-slate-50 border-slate-200/70'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                          <span
+                            className={`font-sans font-bold text-[10px] px-2 py-0.5 rounded-md shadow-2xs shrink-0 ${
+                              idx === 0
+                                ? 'bg-[#008955] text-white'
+                                : 'bg-slate-200 text-slate-700'
+                            }`}
+                          >
+                            {routine.start_time || routine.startTime} - {routine.end_time || routine.endTime}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-900 text-xs leading-tight truncate">
+                              {routine.subject_name || routine.subjectName}
+                            </p>
+                            <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+                              শিক্ষক: {routine.teacher_name || routine.teacherName || 'উস্তাদ নির্ধারণ করা হয়নি'}
+                              {routine.room_no && ` • রুম: ${routine.room_no}`}
+                            </p>
+                          </div>
+                        </div>
 
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200/60">
-                    <div className="flex items-center gap-2.5">
-                      <span className="font-sans font-semibold text-slate-700 text-[10px] bg-slate-200 px-2 py-0.5 rounded-md">
-                        09:30 AM
-                      </span>
-                      <div>
-                        <p className="font-bold text-slate-900 text-xs leading-tight">তাজবীদ ও মাখরাজ মশক</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">মুফতি ইকরামুল হাসান</p>
+                        {idx === 0 && (
+                          <span className="text-[9px] font-extrabold text-[#008955] bg-emerald-100/90 border border-emerald-300/60 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                            <Zap className="w-2.5 h-2.5 fill-[#008955]" /> প্রথম ক্লাস
+                          </span>
+                        )}
                       </div>
-                    </div>
-                    <span className="text-[9px] font-medium text-slate-400">পরবর্তী ক্লাস</span>
+                    ))}
                   </div>
-                </div>
+                ) : (
+                  /* যদি এডমিন আজকের দিনে কোনো রুটিন এড না করে থাকে */
+                  <div className="py-4 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    <p className="text-xs font-bold text-slate-600">আজকে কোনো ক্লাস রুটিন যুক্ত করা নেই</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      অ্যাডমিন প্যানেল থেকে {displayStudent.className || 'সাধারণ'} শ্রেণির আজকের রুটিন যুক্ত করা হলে এখানে দেখাবে
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
