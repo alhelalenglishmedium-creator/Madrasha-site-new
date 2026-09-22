@@ -1333,6 +1333,78 @@ export function AdminDashboard() {
   const [isPrayerModalOpen, setIsPrayerModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
+  // UID ইউনিকনেস ভ্যালিডেশন (এক UID যেন অন্য কোনো শিক্ষার্থী বা শিক্ষকের জন্য ব্যবহৃত না হতে পারে)
+  const checkUidUniqueness = async (targetUid: string, currentEditingId?: string) => {
+    const cleanUid = targetUid.trim().toLowerCase();
+    if (!cleanUid) return;
+
+    // ১. লোকালডিবি থেকে সকল শিক্ষার্থী চেক
+    const allLocalStudents = await localDb.students.toArray();
+    const dupStudent = allLocalStudents.find(
+      (s) =>
+        (s.id?.trim().toLowerCase() === cleanUid || s.admissionNo?.trim().toLowerCase() === cleanUid) &&
+        s.id !== currentEditingId
+    );
+
+    if (dupStudent) {
+      const name = dupStudent.fullNameBangla || dupStudent.fullName || 'শিক্ষার্থী';
+      throw new Error(
+        `এই UID (${targetUid}) ইতিমধ্যে "${name}" (শিক্ষার্থী, রোল: ${dupStudent.rollNo || '০১'}) এর জন্য ব্যবহৃত হয়েছে! অনুগ্রহ করে একটি অনন্য (Unique) UID দিন।`
+      );
+    }
+
+    // ২. লোকালডিবি থেকে সকল শিক্ষক/স্টাফ চেক
+    const allLocalStaff = await localDb.staff.toArray();
+    const dupStaff = allLocalStaff.find(
+      (st) =>
+        (st.id?.trim().toLowerCase() === cleanUid || st.teacher_uid?.trim().toLowerCase() === cleanUid) &&
+        st.id !== currentEditingId
+    );
+
+    if (dupStaff) {
+      const name = dupStaff.fullName || 'শিক্ষক';
+      throw new Error(
+        `এই UID (${targetUid}) ইতিমধ্যে "${name}" (শিক্ষক/স্টাফ)-এর জন্য ব্যবহৃত হয়েছে! অনুগ্রহ করে একটি অনন্য (Unique) UID দিন।`
+      );
+    }
+
+    // ৩. সুপাবেস ক্লাউড থেকে শিক্ষার্থী চেক
+    try {
+      const { data: cloudStd } = await supabase
+        .from('students')
+        .select('id, admission_no, full_name, name')
+        .or(`id.eq."${cleanUid}",admission_no.eq."${cleanUid}"`)
+        .maybeSingle();
+
+      if (cloudStd && cloudStd.id !== currentEditingId) {
+        const name = cloudStd.full_name || cloudStd.name || 'শিক্ষার্থী';
+        throw new Error(
+          `এই UID (${targetUid}) ইতিমধ্যে ক্লাউড ডাটাবেজে "${name}" (শিক্ষার্থী)-এর জন্য নির্ধারিত আছে! অন্য একটি অনন্য UID দিন।`
+        );
+      }
+    } catch (e: any) {
+      if (e.message?.includes('ইতিমধ্যে')) throw e;
+    }
+
+    // ৪. সুপাবেস ক্লাউড থেকে শিক্ষক চেক
+    try {
+      const { data: cloudStaff } = await supabase
+        .from('staff')
+        .select('id, teacher_uid, full_name, name')
+        .or(`id.eq."${cleanUid}",teacher_uid.eq."${cleanUid}"`)
+        .maybeSingle();
+
+      if (cloudStaff && cloudStaff.id !== currentEditingId) {
+        const name = cloudStaff.full_name || cloudStaff.name || 'শিক্ষক';
+        throw new Error(
+          `এই UID (${targetUid}) ইতিমধ্যে ক্লাউড ডাটাবেজে "${name}" (শিক্ষক)-এর জন্য নির্ধারিত আছে! অন্য একটি অনন্য UID দিন।`
+        );
+      }
+    } catch (e: any) {
+      if (e.message?.includes('ইতিমধ্যে')) throw e;
+    }
+  };
+
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -1885,6 +1957,10 @@ export function AdminDashboard() {
         onClose={() => setIsStudentModalOpen(false)}
         onSave={async (d: any) => {
           const finalId = (d.admissionNo || `S-${Math.floor(100 + Math.random() * 900)}`).trim();
+
+          // UID ইউনিকনেস চেক (এক UID অন্য কারো হতে পারবে না)
+          await checkUidUniqueness(finalId, d.id);
+
           const primaryPhone = d.phone || (d.guardianContacts?.[0]?.phone || '');
           const studentRecord = {
             ...d,
@@ -1939,7 +2015,10 @@ export function AdminDashboard() {
         onClose={() => setIsTeacherModalOpen(false)}
         onSave={async (d: any) => {
           const finalId = (d.teacher_uid || d.id || `T-${Math.floor(100 + Math.random() * 900)}`).trim();
-          
+
+          // UID ইউনিকনেস চেক (এক UID অন্য কারো হতে পারবে না)
+          await checkUidUniqueness(finalId, d.id);
+
           const teacherRecord = {
             ...d,
             id: finalId,
