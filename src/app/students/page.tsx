@@ -343,9 +343,21 @@ export default function StudentsDirectoryPage() {
     }
   };
 
-  // ফিল্টারিং সার্ভিস (Instant Memory Filtering)
+  // বাংলা সংখ্যা কনভার্ট করে সঠিক নিউমেরিক সর্টিং হেলপার
+  const parseRollNumber = (rollStr?: string): number => {
+    if (!rollStr) return 99999;
+    const banglaToEng: Record<string, string> = {
+      '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+      '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
+    };
+    const engStr = String(rollStr).replace(/[০-৯]/g, (w) => banglaToEng[w] || w).replace(/\D/g, '');
+    const parsed = parseInt(engStr, 10);
+    return isNaN(parsed) ? 99999 : parsed;
+  };
+
+  // ফিল্টারিং ও রোল অনুযায়ী নিউমেরিক সর্টিং সার্ভিস
   const filteredStudents = useMemo(() => {
-    return students.filter((std) => {
+    const list = students.filter((std) => {
       const stdInst = std.institutionType || 'madrasa';
       if (stdInst !== activeInstTab) return false;
 
@@ -363,6 +375,8 @@ export default function StudentsDirectoryPage() {
         (std.assigned_teacher_name && std.assigned_teacher_name.toLowerCase().includes(q))
       );
     });
+
+    return list.sort((a, b) => parseRollNumber(a.rollNo) - parseRollNumber(b.rollNo));
   }, [students, activeInstTab, selectedClass, searchQuery]);
 
   // প্রতিষ্ঠান অনুযায়ী গণনাকরণ

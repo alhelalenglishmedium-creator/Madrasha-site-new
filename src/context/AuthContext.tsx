@@ -54,6 +54,13 @@ const sanitizeUserForStorage = (userObj: AuthUser): AuthUser => {
   if (sanitized.avatarUrl && (sanitized.avatarUrl.startsWith('data:image') || sanitized.avatarUrl.length > 500)) {
     sanitized.avatarUrl = ''; // ভারী Base64 ছবি বাদ দেওয়া হলো
   }
+  if (sanitized.extraData && typeof sanitized.extraData === 'object') {
+    const cleanExtra = { ...sanitized.extraData };
+    if (cleanExtra.photoUrl && (cleanExtra.photoUrl.startsWith('data:image') || cleanExtra.photoUrl.length > 500)) {
+      cleanExtra.photoUrl = '';
+    }
+    sanitized.extraData = cleanExtra;
+  }
   return sanitized;
 };
 
@@ -226,10 +233,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         handleDeepLink(data.url);
       });
 
+      // Browser closed listener (handles when user manually closes Google Sign-in browser tab)
+      const browserListener = Browser.addListener('browserFinished', () => {
+        setIsLoading(false);
+      });
+
       return () => {
         isMounted = false;
         authListener.subscription.unsubscribe();
         appListener.then((l) => l.remove()).catch(() => {});
+        browserListener.then((l) => l.remove()).catch(() => {});
       };
     }
 

@@ -1951,7 +1951,38 @@ export function AdminDashboard() {
         }}
       />
 
-      <FeeCollectionModal isOpen={isFeeModalOpen} onClose={() => setIsFeeModalOpen(false)} studentsList={studentsList} onSavePayment={async (d) => { await localDb.feePayments.add({ ...d, id: `fee_${Date.now()}`, receiptNo: `REC-${Date.now().toString().slice(-6)}`, synced: false, createdAt: new Date().toISOString() }); triggerSuccess('ফি আদায় সম্পন্ন!'); }} />
+      <FeeCollectionModal
+        isOpen={isFeeModalOpen}
+        onClose={() => setIsFeeModalOpen(false)}
+        studentsList={studentsList}
+        onSavePayment={async (d) => {
+          const payId = `fee_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          const recNo = `REC-${Date.now().toString().slice(-6)}`;
+          const nowIso = new Date().toISOString();
+
+          await localDb.feePayments.add({
+            ...d,
+            id: payId,
+            receiptNo: recNo,
+            synced: true,
+            createdAt: nowIso,
+          });
+
+          try {
+            await supabase.from('student_fees').insert([{
+              student_id: d.studentId,
+              amount: Number(d.amount) || 0,
+              month: d.month || 'চলতি মাস',
+              payment_method: d.paymentMethod || 'cash',
+              receipt_no: recNo,
+              paid_at: nowIso,
+              created_at: nowIso,
+            }]);
+          } catch (e) {}
+
+          triggerSuccess('ফি আদায় সম্পন্ন!');
+        }}
+      />
       
       {/* নতুন শিক্ষক যুক্তকরণ - Supabase + LocalDb দ্বিমুখী সিঙ্ক (ফ্লেক্সিবল UID) */}
       <TeacherFormModal

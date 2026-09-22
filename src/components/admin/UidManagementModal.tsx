@@ -417,7 +417,7 @@ export function UidManagementPage({
                         <button
                           type="button"
                           onClick={() => {
-                            const auto = `TID ${Math.floor(100 + Math.random() * 900)}`;
+                            const auto = `T-${Math.floor(100 + Math.random() * 900)}`;
                             handleUidInputChange(tc.id, auto);
                           }}
                           className="px-2.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-[11px] font-bold border border-purple-200"

@@ -39,6 +39,13 @@ interface MetricData {
   total: number;
 }
 
+const formatLocalDate = (d: Date = new Date()): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function AttendancePage() {
   const { currentInstitution, setInstitutionByType } = useInstitution();
 
@@ -58,7 +65,7 @@ export default function AttendancePage() {
   const [activeMetric, setActiveMetric] = useState<TimeFrame>('daily');
   const [selectedClass, setSelectedClass] = useState<string>('সব');
   const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    formatLocalDate(new Date())
   );
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showStudentList, setShowStudentList] = useState<boolean>(true);
@@ -183,16 +190,16 @@ export default function AttendancePage() {
       weekStart.setDate(curr.getDate() - 6);
       const weeklyStats = calculateRangeStats(
         allRecords,
-        weekStart.toISOString().split('T')[0],
+        formatLocalDate(weekStart),
         selectedDate,
         selectedClass,
         loadedStudents
       );
 
-      const monthStart = new Date(curr.getFullYear(), curr.getMonth(), 1).toISOString().split('T')[0];
+      const monthStart = formatLocalDate(new Date(curr.getFullYear(), curr.getMonth(), 1));
       const monthlyStats = calculateRangeStats(allRecords, monthStart, selectedDate, selectedClass, loadedStudents);
 
-      const yearStart = new Date(curr.getFullYear(), 0, 1).toISOString().split('T')[0];
+      const yearStart = formatLocalDate(new Date(curr.getFullYear(), 0, 1));
       const yearlyStats = calculateRangeStats(allRecords, yearStart, selectedDate, selectedClass, loadedStudents);
 
       setMetrics({
