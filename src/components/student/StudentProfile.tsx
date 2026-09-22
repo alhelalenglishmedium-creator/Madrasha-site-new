@@ -12,6 +12,7 @@ import {
   User,
 } from 'lucide-react';
 import type { Student } from '@/types/database.types';
+import { ImagePreviewModal } from '@/components/common/ImagePreviewModal';
 
 interface StudentProfileProps {
   student: Student;
@@ -20,6 +21,7 @@ interface StudentProfileProps {
 
 export const StudentProfile: React.FC<StudentProfileProps> = ({ student, onLogout }) => {
   const [photoError, setPhotoError] = React.useState<boolean>(false);
+  const [isPreviewOpen, setIsPreviewOpen] = React.useState<boolean>(false);
 
   // নামের শুরুতে 'মুহাম্মাদ' নিশ্চিত করার লজিক
   const formattedName = useMemo(() => {
@@ -75,7 +77,13 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, onLogou
         {/* শিক্ষার্থী ছবি ও প্রধান তথ্য */}
         <div className="flex items-center gap-3.5">
           {/* ফটো স্লট (ছবি থাকলে ছবি, না থাকলে সুন্দর অবতার) */}
-          <div className="h-20 w-20 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-emerald-400 p-0.5 shadow-md shadow-emerald-600/15 shrink-0 overflow-hidden">
+          <div
+            onClick={() => {
+              if (studentPhoto) setIsPreviewOpen(true);
+            }}
+            className="h-20 w-20 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-emerald-400 p-0.5 shadow-md shadow-emerald-600/15 shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition"
+            title="ছবি সম্পূর্ণ দেখতে ক্লিক করুন"
+          >
             {studentPhoto && !photoError ? (
               <img
                 src={studentPhoto}
@@ -251,10 +259,19 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, onLogou
       <button
         type="button"
         onClick={() => onLogout?.()}
-        className="w-full py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 shadow-2xs mt-3"
+        className="w-full py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 shadow-2xs mt-3 cursor-pointer"
       >
         <LogOut className="w-4 h-4" /> অ্যাকাউন্ট থেকে লগআউট
       </button>
+
+      {/* ফটো ফুল-স্ক্রিন প্রিভিউ লাইটবক্স মোডাল */}
+      <ImagePreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        imageUrl={studentPhoto}
+        title={formattedName}
+        subtitle={`শ্রেণি: ${student.className || 'সাধারণ'} • সিরিয়াল/রোল: ${student.rollNo || '০১'}`}
+      />
 
     </div>
   );

@@ -36,6 +36,7 @@ import { StudentProfile } from './StudentProfile';
 import { StudentFeeTab } from './StudentFeeTab';
 import { PrayerScheduleModal } from './PrayerScheduleModal';
 import { DashboardHeader } from '@/components/common/DashboardHeader';
+import { ImagePreviewModal } from '@/components/common/ImagePreviewModal';
 import {
   calculateOfflinePrayerTimes,
   formatTimeBengali,
@@ -93,6 +94,7 @@ export function StudentDashboard() {
   const { setInstitutionByType } = useInstitution();
   const [activeTab, setActiveTab] = useState<StudentTab>('home');
   const [student, setStudent] = useState<Student | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string; subtitle?: string } | null>(null);
 
   const [avatarImgError, setAvatarImgError] = useState<boolean>(false);
   const [isRoutineOpen, setIsRoutineOpen] = useState<boolean>(false);
@@ -596,7 +598,19 @@ export function StudentDashboard() {
 
                 <div className="relative z-10 flex items-center justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 flex items-center justify-center text-white font-black text-xl shadow-inner shrink-0 overflow-hidden">
+                    <div
+                      onClick={() => {
+                        if (displayStudent.photoUrl) {
+                          setPreviewImage({
+                            url: displayStudent.photoUrl,
+                            title: studentFormattedName,
+                            subtitle: `শ্রেণি: ${displayStudent.className} • রোল: ${displayStudent.rollNo} • UID: ${displayStudent.admissionNo}`,
+                          });
+                        }
+                      }}
+                      className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 flex items-center justify-center text-white font-black text-xl shadow-inner shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition"
+                      title="ছবি সম্পূর্ণ দেখতে ক্লিক করুন"
+                    >
                       {displayStudent.photoUrl && !avatarImgError ? (
                         <img
                           src={displayStudent.photoUrl}
@@ -1160,6 +1174,15 @@ export function StudentDashboard() {
       <PrayerScheduleModal
         isOpen={isPrayerModalOpen}
         onClose={() => setIsPrayerModalOpen(false)}
+      />
+
+      {/* ফটো ফুল-স্ক্রিন প্রিভিউ লাইটবক্স মোডাল */}
+      <ImagePreviewModal
+        isOpen={!!previewImage}
+        onClose={() => setPreviewImage(null)}
+        imageUrl={previewImage?.url}
+        title={previewImage?.title}
+        subtitle={previewImage?.subtitle}
       />
     </div>
   );

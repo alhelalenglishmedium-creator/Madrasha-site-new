@@ -1050,6 +1050,8 @@ export function AdminDashboard() {
 
   const [notices, setNotices] = useState<Notice[]>([]);
   const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
+  const [noticeToDelete, setNoticeToDelete] = useState<Notice | null>(null);
+  const [isDeletingNotice, setIsDeletingNotice] = useState(false);
 
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isFeeModalOpen, setIsFeeModalOpen] = useState(false);
@@ -1294,11 +1296,44 @@ export function AdminDashboard() {
     }
   };
 
-  const handleDeleteNotice = (id: string) => {
-    const updated = notices.filter((n) => n.id !== id);
-    setNotices(updated);
-    localStorage.setItem('madrasa_notices', JSON.stringify(updated));
-    triggerSuccess('নোটিশটি মুছে ফেলা হয়েছে।');
+  const confirmDeleteNotice = async () => {
+    if (!noticeToDelete) return;
+
+    try {
+      setIsDeletingNotice(true);
+
+      // ১. Supabase ক্লাউড ডাটাবেজ থেকে স্থায়ীভাবে মুছে ফেলা
+      try {
+        const { error: err1 } = await supabase
+          .from('notices')
+          .delete()
+          .eq('id', noticeToDelete.id);
+
+        if (err1) {
+          await supabase
+            .from('notices')
+            .delete()
+            .eq('title', noticeToDelete.title);
+        }
+      } catch (e) {
+        console.warn('Notice delete Supabase error:', e);
+      }
+
+      // ২. লোকাল স্টেট ও লোকাল স্টোরেজ থেকে আপডেট করা
+      const updated = notices.filter(
+        (n) => n.id !== noticeToDelete.id && n.title !== noticeToDelete.title
+      );
+      setNotices(updated);
+      localStorage.setItem('madrasa_notices', JSON.stringify(updated));
+      localStorage.setItem('madrasa_admin_notices', JSON.stringify(updated));
+
+      triggerSuccess('নোটিশটি স্থায়ীভাবে মুছে ফেলা হয়েছে!');
+    } catch (err) {
+      console.error('Save/Delete Notice Error:', err);
+    } finally {
+      setIsDeletingNotice(false);
+      setNoticeToDelete(null);
+    }
   };
 
   return (
@@ -1485,7 +1520,7 @@ export function AdminDashboard() {
                 <div key={n.id} className="p-3 rounded-2xl bg-[#F8FAF9] border border-[#E7EFEA] space-y-1">
                   <div className="flex justify-between items-center text-[10px]">
                     <span className="font-bold text-[#008955] bg-emerald-50 px-2 py-0.5 rounded">{n.category}</span>
-                    <button onClick={() => handleDeleteNotice(n.id)} className="text-slate-400 hover:text-rose-600"><Trash2 size={12} /></button>
+                    <button onClick={() => setNoticeToDelete(n)} className="text-slate-400 hover:text-rose-600 transition p-1" title="নোটিশ ডিলিট করুন"><Trash2 size={12} /></button>
                   </div>
                   <h4 className="text-xs font-bold text-slate-800">{n.title}</h4>
                   <p className="text-[11px] text-slate-500">{n.content}</p>
@@ -1503,6 +1538,74 @@ export function AdminDashboard() {
         isOpen={isPrayerModalOpen}
         onClose={() => setIsPrayerModalOpen(false)}
       />
+
+      {/* নোটিশ ডিলিট কনফার্মেশন পপআপ মোডাল */}
+      {noticeToDelete && (
+        <div
+          onClick={() => !isDeletingNotice && setNoticeToDelete(null)}
+          className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs font-hind animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-slate-100 space-y-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 shrink-0">
+                <AlertCircle size={24} />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-800">
+                  নোটিশ মুছে ফেলার নিশ্চিতকরণ
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  আপনি কি নিশ্চিতভাবে এই নোটিশটি মুছে ফেলতে চান?
+                </p>
+              </div>
+            </div>
+
+            {/* মুছে ফেলা নোটিশের প্রিভিউ */}
+            <div className="rounded-2xl bg-rose-50/60 p-3 border border-rose-100 space-y-1">
+              <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full inline-block">
+                {noticeToDelete.category}
+              </span>
+              <h4 className="text-xs font-bold text-slate-800 line-clamp-1">
+                {noticeToDelete.title}
+              </h4>
+              <p className="text-[11px] text-slate-600 line-clamp-2">
+                {noticeToDelete.description || noticeToDelete.content}
+              </p>
+            </div>
+
+            <p className="text-[10.5px] font-medium text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+              ⚠️ এটি মুছে ফেলা হলে ক্লাউড ডাটাবেজ সহ সকল শিক্ষক ও শিক্ষার্থীর মোবাইল/পোর্টাল থেকেও এটি স্থায়ীভাবে ডিলিট হয়ে যাবে।
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isDeletingNotice}
+                onClick={() => setNoticeToDelete(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                না, বাতিল
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingNotice}
+                onClick={confirmDeleteNotice}
+                className="flex items-center gap-1.5 rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-rose-700 transition active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingNotice ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Trash2 size={14} />
+                )}
+                <span>{isDeletingNotice ? 'মুছে ফেলা হচ্ছে...' : 'হ্যাঁ, ডিলিট করুন'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* অন্যান্য প্রশাসনিক মোডালসমূহ */}
       <NoticeModal isOpen={isNoticeModalOpen} onClose={() => setIsNoticeModalOpen(false)} onSaveNotice={handleSaveNotice} />

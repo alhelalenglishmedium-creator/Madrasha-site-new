@@ -31,6 +31,7 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Student, Staff, InstitutionType } from '@/types/database.types';
 import { AdminBottomNav } from '@/components/admin/AdminBottomNav';
 import { useInstitution } from '@/context/InstitutionContext';
+import { ImagePreviewModal } from '@/components/common/ImagePreviewModal';
 import {
   StudentFormModal,
   getClassesForInstitution,
@@ -42,6 +43,9 @@ export default function StudentsDirectoryPage() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [teachersList, setTeachersList] = useState<Staff[]>([]);
+
+  // ফটো প্রিভিউ লাইটবক্স স্টেট
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string; subtitle?: string } | null>(null);
 
   // মূল প্রতিষ্ঠান হেডার ট্যাব (মাদ্রাসা | স্কুল | মহিলা মাদ্রাসা)
   const [activeInstTab, setActiveInstTab] = useState<InstitutionType>(
@@ -228,7 +232,6 @@ export default function StudentsDirectoryPage() {
     const targetId = studentToDelete.id;
     setStudentToDelete(null);
 
-    // ১. ইনস্ট্যান্ট অপটিমিস্টিক আপডেট
     setStudents((prev) => prev.filter((s) => s.id !== targetId));
     if (selectedStudent?.id === targetId) {
       setSelectedStudent(null);
@@ -256,7 +259,6 @@ export default function StudentsDirectoryPage() {
     setAssigningSingleStudent(null);
     setSelectedTeacherForAssign('');
 
-    // ১. ইনস্ট্যান্ট অপটিমিস্টিক আপডেট
     setStudents((prev) =>
       prev.map((s) =>
         s.id === stdId
@@ -312,7 +314,6 @@ export default function StudentsDirectoryPage() {
     setBulkAssignClass(null);
     setSelectedTeacherForAssign('');
 
-    // অপটিমিস্টিক ইউআই আপডেট
     setStudents((prev) =>
       prev.map((s) =>
         ids.includes(s.id)
@@ -341,18 +342,15 @@ export default function StudentsDirectoryPage() {
     }
   };
 
-  // ফিল্টারিং সার্ভিস (ইনস্ট্যান্ট মেমোরি ফিল্টারিং - 0ms delay)
+  // ফিল্টারিং সার্ভিস (Instant Memory Filtering)
   const filteredStudents = useMemo(() => {
     return students.filter((std) => {
-      // ১. প্রতিষ্ঠান ফিল্টারিং
       const stdInst = std.institutionType || 'madrasa';
       if (stdInst !== activeInstTab) return false;
 
-      // ২. সাব-ক্লাস ফিল্টারিং
       const matchClass = selectedClass === 'সব' || std.className === selectedClass;
       if (!matchClass) return false;
 
-      // ৩. সার্চ ফিল্টারিং
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
       return (
@@ -411,7 +409,7 @@ export default function StudentsDirectoryPage() {
               setEditingStudent(null);
               setIsFormModalOpen(true);
             }}
-            className="h-10 w-10 rounded-2xl bg-[#008955] text-white flex items-center justify-center shadow-xs active:scale-95 transition hover:bg-[#007548]"
+            className="h-10 w-10 rounded-2xl bg-[#008955] text-white flex items-center justify-center shadow-xs active:scale-95 transition hover:bg-[#007548] cursor-pointer"
             title="নতুন ছাত্র ভর্তি"
           >
             <UserPlus size={18} />
@@ -568,8 +566,21 @@ export default function StudentsDirectoryPage() {
               >
                 {/* প্রোফাইল ইমেজ ও তথ্য */}
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative shrink-0">
-                    <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-[#E7F6ED] to-[#FEF3C7] border border-[#D9E7E0] overflow-hidden flex items-center justify-center text-[#008955]">
+                  <div
+                    onClick={(e) => {
+                      if (student.photoUrl) {
+                        e.stopPropagation();
+                        setPreviewImage({
+                          url: student.photoUrl,
+                          title: student.fullNameBangla || student.fullName,
+                          subtitle: `শ্রেণি: ${student.className} • রোল: ${student.rollNo}`,
+                        });
+                      }
+                    }}
+                    className="relative shrink-0 cursor-pointer group/img"
+                    title="ছবি সম্পূর্ণ দেখুন"
+                  >
+                    <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-[#E7F6ED] to-[#FEF3C7] border border-[#D9E7E0] overflow-hidden flex items-center justify-center text-[#008955] group-hover/img:scale-105 transition">
                       {student.photoUrl ? (
                         <img
                           src={student.photoUrl}
@@ -676,9 +687,21 @@ export default function StudentsDirectoryPage() {
                 </button>
               </div>
 
-              {/* সেন্টার অ্যাভাটার / ছবি */}
+              {/* সেন্টার অ্যাভাটার / ছবি (ক্লিক করলে ফুল প্রিভিউ) */}
               <div className="relative -mt-9 flex flex-col items-center justify-center px-4">
-                <div className="w-20 h-20 rounded-full border-4 border-white bg-gradient-to-tr from-[#E7F6ED] to-[#FEF3C7] shadow-md overflow-hidden flex items-center justify-center text-[#008955] shrink-0">
+                <div
+                  onClick={() => {
+                    if (selectedStudent.photoUrl) {
+                      setPreviewImage({
+                        url: selectedStudent.photoUrl,
+                        title: selectedStudent.fullNameBangla || selectedStudent.fullName,
+                        subtitle: `শ্রেণি: ${selectedStudent.className} • রোল: ${selectedStudent.rollNo} • UID: ${selectedStudent.admissionNo || selectedStudent.id}`,
+                      });
+                    }
+                  }}
+                  className="w-20 h-20 rounded-full border-4 border-white bg-gradient-to-tr from-[#E7F6ED] to-[#FEF3C7] shadow-md overflow-hidden flex items-center justify-center text-[#008955] shrink-0 cursor-pointer hover:opacity-90 active:scale-95 transition"
+                  title="ছবি সম্পূর্ণ দেখতে ক্লিক করুন"
+                >
                   {selectedStudent.photoUrl ? (
                     <img
                       src={selectedStudent.photoUrl}
@@ -1045,14 +1068,12 @@ export default function StudentsDirectoryPage() {
                 updatedAt: new Date().toISOString(),
               };
 
-              // ১. ইনস্ট্যান্ট অপটিমিস্টিক আপডেট
               setStudents((prev) =>
                 prev.map((s) => (s.id === oldOriginalUid ? updatedRecord : s))
               );
               setIsFormModalOpen(false);
               setEditingStudent(null);
 
-              // ২. সাইলেন্ট ব্যাকগ্রাউন্ড সিঙ্ক
               try {
                 if (newCustomUid !== oldOriginalUid) {
                   await localDb.students.delete(oldOriginalUid);
@@ -1099,11 +1120,9 @@ export default function StudentsDirectoryPage() {
                 updatedAt: new Date().toISOString(),
               };
 
-              // ১. ইনস্ট্যান্ট অপটিমিস্টিক আপডেট
               setStudents((prev) => [newRecord, ...prev]);
               setIsFormModalOpen(false);
 
-              // ২. সাইলেন্ট ব্যাকগ্রাউন্ড সিঙ্ক
               try {
                 await localDb.students.put(newRecord);
 
@@ -1134,6 +1153,15 @@ export default function StudentsDirectoryPage() {
               }
             }
           }}
+        />
+
+        {/* ================= ৯. ফটো প্রিভিউ ফুল-স্ক্রিন মোডাল (Lightbox) ================= */}
+        <ImagePreviewModal
+          isOpen={!!previewImage}
+          onClose={() => setPreviewImage(null)}
+          imageUrl={previewImage?.url}
+          title={previewImage?.title}
+          subtitle={previewImage?.subtitle}
         />
 
         {/* বটম নেভিগেশন বার */}
