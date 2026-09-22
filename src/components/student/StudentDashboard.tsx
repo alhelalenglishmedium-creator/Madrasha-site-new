@@ -23,6 +23,7 @@ import {
   GraduationCap,
   Medal,
   ChevronDown,
+  ArrowLeft,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useInstitution } from '@/context/InstitutionContext';
@@ -1135,38 +1136,62 @@ export function StudentDashboard() {
         <StudentBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
 
-      {/* ক্লাস রুটিন মোডাল */}
+      {/* ক্লাস রুটিন ফুল পেজ স্ক্রিন (Full Page Screen View) */}
       {isRoutineOpen && (
-        <div
-          onClick={() => setIsRoutineOpen(false)}
-          className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 font-['Noto_Sans_Bengali',sans-serif] animate-in fade-in"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-[420px] bg-white rounded-t-[32px] sm:rounded-3xl shadow-2xl p-4 overflow-hidden border border-slate-200 animate-in slide-in-from-bottom-5 space-y-3"
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center">
-                  <CalendarDays size={16} />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-slate-900">ক্লাস রুটিন ও সময়সূচি</h3>
-                  <p className="text-[10px] text-slate-400">{displayStudent.className} বিভাগ</p>
-                </div>
-              </div>
+        <div className="absolute inset-0 z-[150] bg-[#F8FAFC] flex flex-col font-['Noto_Sans_Bengali',sans-serif] animate-in slide-in-from-right duration-200">
 
+          {/* ফুল পেজ ব্র্যান্ডেড হেডার */}
+          <header className="shrink-0 bg-white px-4 pt-4 pb-3 flex items-center justify-between border-b border-slate-200/80 shadow-2xs">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setIsRoutineOpen(false)}
-                className="h-7 w-7 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center cursor-pointer"
+                className="h-9 w-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition active:scale-95 shrink-0 cursor-pointer shadow-2xs"
+                title="পিছনে যান"
               >
-                <X size={15} />
+                <ArrowLeft size={18} className="stroke-[2.2]" />
               </button>
+              <div>
+                <h2 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
+                  ক্লাস রুটিন ও সময়সূচি
+                </h2>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] font-bold text-[#008955] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    {displayStudent.className || 'সাধারণ'} বিভাগ
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium font-sans">• শিক্ষাবর্ষ ২০২৬</span>
+                </div>
+              </div>
             </div>
 
+            <div className="h-9 w-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 shadow-2xs">
+              <CalendarDays size={18} />
+            </div>
+          </header>
+
+          {/* ফুল পেজ বডি */}
+          <main className="flex-1 overflow-y-auto p-4 space-y-3.5 no-scrollbar">
+            <div className="bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 rounded-2xl p-3.5 text-white shadow-md flex items-center justify-between">
+              <div>
+                <span className="text-[9.5px] font-bold text-sky-100 bg-white/20 px-2.5 py-0.5 rounded-full inline-block mb-1">
+                  দৈনিক সময়সূচি
+                </span>
+                <h3 className="text-xs sm:text-sm font-bold leading-tight">
+                  {displayStudent.fullNameBangla || displayStudent.fullName}-এর রুটিন
+                </h3>
+                <p className="text-[10px] text-sky-100 mt-0.5 font-medium">
+                  শ্রেণি: {displayStudent.className} • রোল: {displayStudent.rollNo}
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-white shrink-0 border border-white/20">
+                <Clock size={20} />
+              </div>
+            </div>
+
+            {/* ক্লাস রুটিনের তালিকা */}
             <StudentRoutine classNameProp={displayStudent.className} />
-          </div>
+          </main>
+
         </div>
       )}
 
