@@ -928,6 +928,15 @@ function InlineAdminResultModal({
 /* ==========================================================================
    ৩. শিক্ষার্থী ও শিক্ষক স্মার্ট UID বরাদ্দ পেজ (TID পারসিস্ট ফিক্সড)
    ========================================================================== */
+async function checkUidUniqueness(targetUid: string, currentEditingId?: string) {
+  const res = await checkUidAvailability(targetUid, currentEditingId);
+  if (res.isTaken) {
+    throw new Error(
+      res.message || `এই ইউআইডিটি (${targetUid}) আগে ব্যবহার করা হয়েছে! অনুগ্রহ করে একটি ভিন্ন ইউআইডি ব্যবহার করুন।`
+    );
+  }
+}
+
 function InlineUidManagementPage({
   isOpen,
   onClose,
@@ -1339,16 +1348,6 @@ export function AdminDashboard() {
   // সালাত ট্র্যাকার ও মোডাল স্টেট
   const [isPrayerModalOpen, setIsPrayerModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
-
-  // UID ইউনিকনেস ভ্যালিডেশন (এক UID যেন অন্য কোনো শিক্ষার্থী বা শিক্ষকের জন্য ব্যবহৃত না হতে পারে)
-  const checkUidUniqueness = async (targetUid: string, currentEditingId?: string) => {
-    const res = await checkUidAvailability(targetUid, currentEditingId);
-    if (res.isTaken) {
-      throw new Error(
-        res.message || `এই ইউআইডিটি (${targetUid}) আগে ব্যবহার করা হয়েছে! অনুগ্রহ করে একটি ভিন্ন ইউআইডি ব্যবহার করুন।`
-      );
-    }
-  };
 
   useEffect(() => {
     const timer = setInterval(() => {
