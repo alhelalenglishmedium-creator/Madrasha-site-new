@@ -1752,13 +1752,13 @@ export function AdminDashboard() {
                 </div>
               </button>
 
-              <button onClick={() => setIsUidModalOpen(true)} className="bg-white border border-[#E3ECE6] rounded-[20px] p-3.5 flex items-center gap-3 shadow-2xs active:scale-95 transition text-left">
-                <div className="h-10 w-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0">
-                  <IdCard size={18} />
+              <button onClick={() => setIsTeacherModalOpen(true)} className="bg-white border border-[#E3ECE6] rounded-[20px] p-3.5 flex items-center gap-3 shadow-2xs active:scale-95 transition text-left cursor-pointer">
+                <div className="h-10 w-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                  <Users size={18} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-[#1F2937]">UID বরাদ্দ</h4>
-                  <p className="text-[9.5px] text-slate-400 mt-0.5">স্মার্ট আইডি সেট</p>
+                  <h4 className="text-xs font-bold text-[#1F2937]">নতুন শিক্ষক</h4>
+                  <p className="text-[9.5px] text-slate-400 mt-0.5">উস্তাদ ও স্টাফ যুক্তকরণ</p>
                 </div>
               </button>
 
