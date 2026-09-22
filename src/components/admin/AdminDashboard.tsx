@@ -33,6 +33,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
+import { checkUidAvailability } from '@/lib/uidUtils';
 import type { Student, Staff } from '@/types/database.types';
 
 import { AdminBottomNav } from './AdminBottomNav';
@@ -993,6 +994,9 @@ function InlineUidManagementPage({
     try {
       setLoadingId(student.id);
 
+      // ইউআইডি ইউনিকনেস সিকিউরিটি চেক
+      await checkUidUniqueness(newCustomUid, oldOriginalUid);
+
       const updatePayload: any = {
         id: newCustomUid,
         admission_no: newCustomUid,
@@ -1058,6 +1062,9 @@ function InlineUidManagementPage({
 
     try {
       setLoadingId(teacher.id);
+
+      // ইউআইডি ইউনিকনেস সিকিউরিটি চেক
+      await checkUidUniqueness(newUid, teacher.id);
 
       // লোকাল স্টোরেজে teacher_uid ও id উভয় জায়গায় সেভ
       await localDb.staff.update(teacher.id, {
@@ -1335,73 +1342,11 @@ export function AdminDashboard() {
 
   // UID ইউনিকনেস ভ্যালিডেশন (এক UID যেন অন্য কোনো শিক্ষার্থী বা শিক্ষকের জন্য ব্যবহৃত না হতে পারে)
   const checkUidUniqueness = async (targetUid: string, currentEditingId?: string) => {
-    const cleanUid = targetUid.trim().toLowerCase();
-    if (!cleanUid) return;
-
-    // ১. লোকালডিবি থেকে সকল শিক্ষার্থী চেক
-    const allLocalStudents = await localDb.students.toArray();
-    const dupStudent = allLocalStudents.find(
-      (s) =>
-        (s.id?.trim().toLowerCase() === cleanUid || s.admissionNo?.trim().toLowerCase() === cleanUid) &&
-        s.id !== currentEditingId
-    );
-
-    if (dupStudent) {
-      const name = dupStudent.fullNameBangla || dupStudent.fullName || 'শিক্ষার্থী';
+    const res = await checkUidAvailability(targetUid, currentEditingId);
+    if (res.isTaken) {
       throw new Error(
-        `এই UID (${targetUid}) ইতিমধ্যে "${name}" (শিক্ষার্থী, রোল: ${dupStudent.rollNo || '০১'}) এর জন্য ব্যবহৃত হয়েছে! অনুগ্রহ করে একটি অনন্য (Unique) UID দিন।`
+        res.message || `এই ইউআইডিটি (${targetUid}) আগে ব্যবহার করা হয়েছে! অনুগ্রহ করে একটি ভিন্ন ইউআইডি ব্যবহার করুন।`
       );
-    }
-
-    // ২. লোকালডিবি থেকে সকল শিক্ষক/স্টাফ চেক
-    const allLocalStaff = await localDb.staff.toArray();
-    const dupStaff = allLocalStaff.find(
-      (st) =>
-        (st.id?.trim().toLowerCase() === cleanUid || st.teacher_uid?.trim().toLowerCase() === cleanUid) &&
-        st.id !== currentEditingId
-    );
-
-    if (dupStaff) {
-      const name = dupStaff.fullName || 'শিক্ষক';
-      throw new Error(
-        `এই UID (${targetUid}) ইতিমধ্যে "${name}" (শিক্ষক/স্টাফ)-এর জন্য ব্যবহৃত হয়েছে! অনুগ্রহ করে একটি অনন্য (Unique) UID দিন।`
-      );
-    }
-
-    // ৩. সুপাবেস ক্লাউড থেকে শিক্ষার্থী চেক
-    try {
-      const { data: cloudStd } = await supabase
-        .from('students')
-        .select('id, admission_no, full_name, name')
-        .or(`id.eq."${cleanUid}",admission_no.eq."${cleanUid}"`)
-        .maybeSingle();
-
-      if (cloudStd && cloudStd.id !== currentEditingId) {
-        const name = cloudStd.full_name || cloudStd.name || 'শিক্ষার্থী';
-        throw new Error(
-          `এই UID (${targetUid}) ইতিমধ্যে ক্লাউড ডাটাবেজে "${name}" (শিক্ষার্থী)-এর জন্য নির্ধারিত আছে! অন্য একটি অনন্য UID দিন।`
-        );
-      }
-    } catch (e: any) {
-      if (e.message?.includes('ইতিমধ্যে')) throw e;
-    }
-
-    // ৪. সুপাবেস ক্লাউড থেকে শিক্ষক চেক
-    try {
-      const { data: cloudStaff } = await supabase
-        .from('staff')
-        .select('id, teacher_uid, full_name, name')
-        .or(`id.eq."${cleanUid}",teacher_uid.eq."${cleanUid}"`)
-        .maybeSingle();
-
-      if (cloudStaff && cloudStaff.id !== currentEditingId) {
-        const name = cloudStaff.full_name || cloudStaff.name || 'শিক্ষক';
-        throw new Error(
-          `এই UID (${targetUid}) ইতিমধ্যে ক্লাউড ডাটাবেজে "${name}" (শিক্ষক)-এর জন্য নির্ধারিত আছে! অন্য একটি অনন্য UID দিন।`
-        );
-      }
-    } catch (e: any) {
-      if (e.message?.includes('ইতিমধ্যে')) throw e;
     }
   };
 

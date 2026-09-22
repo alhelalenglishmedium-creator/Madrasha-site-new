@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
+import { checkUidAvailability } from '@/lib/uidUtils';
 import type { Student, Staff, InstitutionType } from '@/types/database.types';
 import { AdminBottomNav } from '@/components/admin/AdminBottomNav';
 import { useInstitution } from '@/context/InstitutionContext';
@@ -1059,6 +1060,12 @@ export default function StudentsDirectoryPage() {
               const oldOriginalUid = editingStudent.id;
               const newCustomUid = (studentData.admissionNo || editingStudent.admissionNo || oldOriginalUid).trim();
 
+              const uidCheck = await checkUidAvailability(newCustomUid, oldOriginalUid);
+              if (uidCheck.isTaken) {
+                alert(uidCheck.message || 'এই ইউআইডিটি ইতোমধ্যে ব্যবহৃত হচ্ছে!');
+                throw new Error(uidCheck.message);
+              }
+
               const updatedRecord: Student = {
                 ...editingStudent,
                 ...studentData,
@@ -1110,6 +1117,12 @@ export default function StudentsDirectoryPage() {
             } else {
               const stdUid = (studentData.admissionNo || `UID-2026-${String(studentData.rollNo || Math.floor(10 + Math.random() * 90)).padStart(2, '0')}`).trim();
               const newId = stdUid;
+
+              const uidCheck = await checkUidAvailability(newId);
+              if (uidCheck.isTaken) {
+                alert(uidCheck.message || 'এই ইউআইডিটি ইতোমধ্যে ব্যবহৃত হচ্ছে!');
+                throw new Error(uidCheck.message);
+              }
 
               const newRecord: Student = {
                 ...studentData,

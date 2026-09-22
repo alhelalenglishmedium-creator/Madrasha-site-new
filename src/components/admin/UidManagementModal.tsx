@@ -16,6 +16,7 @@ import {
 import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
 import type { Student } from '@/types/database.types';
+import { checkUidAvailability } from '@/lib/uidUtils';
 
 interface UidManagementPageProps {
   isOpen: boolean;
@@ -50,6 +51,7 @@ export function UidManagementPage({
   const [selectedClass, setSelectedClass] = useState<string>('সকল বিভাগ');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [editingUids, setEditingUids] = useState<{ [id: string]: string }>({});
+  const [uidErrors, setUidErrors] = useState<{ [id: string]: string }>({});
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,6 +61,33 @@ export function UidManagementPage({
       });
     }
   }, [isOpen]);
+
+  const handleUidInputChange = async (id: string, newUidVal: string) => {
+    setEditingUids((prev) => ({ ...prev, [id]: newUidVal }));
+    const trimmed = newUidVal.trim();
+    if (!trimmed) {
+      setUidErrors((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+
+    const checkRes = await checkUidAvailability(trimmed, id);
+    if (checkRes.isTaken) {
+      setUidErrors((prev) => ({
+        ...prev,
+        [id]: checkRes.message || 'এই ইউআইডিটি ইতোমধ্যে অন্যজনের জন্য ব্যবহৃত হচ্ছে!',
+      }));
+    } else {
+      setUidErrors((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -98,6 +127,15 @@ export function UidManagementPage({
       editingUids[student.id]?.trim() ||
       student.admissionNo ||
       `UID-2026-${String(student.rollNo || Math.floor(10 + Math.random() * 90)).padStart(2, '0')}`;
+
+    // ইউআইডি ইউনিকনেস সিকিউরিটি চেক
+    const checkRes = await checkUidAvailability(newCustomUid, oldOriginalUid);
+    if (checkRes.isTaken) {
+      const errMsg = checkRes.message || 'এই ইউআইডিটি ইতোমধ্যে ব্যবহৃত হচ্ছে! ভিন্ন ইউআইডি প্রবেশ করান।';
+      setUidErrors((prev) => ({ ...prev, [student.id]: errMsg }));
+      alert(errMsg);
+      return;
+    }
 
     try {
       setLoadingId(student.id);
@@ -149,6 +187,12 @@ export function UidManagementPage({
         updatedAt: new Date().toISOString(),
       });
 
+      setUidErrors((prev) => {
+        const next = { ...prev };
+        delete next[student.id];
+        return next;
+      });
+
       onSuccess(
         `${student.fullNameBangla || student.fullName}-এর ইউআইডি সংরক্ষিত: ${newCustomUid}`
       );
@@ -164,6 +208,15 @@ export function UidManagementPage({
     const newUid = editingUids[teacher.id]?.trim();
     if (!newUid) {
       alert('অনুগ্রহ করে নতুন UID লিখুন!');
+      return;
+    }
+
+    // ইউআইডি ইউনিকনেস সিকিউরিটি চেক
+    const checkRes = await checkUidAvailability(newUid, teacher.id);
+    if (checkRes.isTaken) {
+      const errMsg = checkRes.message || 'এই ইউআইডিটি ইতোমধ্যে ব্যবহৃত হচ্ছে! ভিন্ন ইউআইডি প্রবেশ করান।';
+      setUidErrors((prev) => ({ ...prev, [teacher.id]: errMsg }));
+      alert(errMsg);
       return;
     }
 
@@ -348,34 +401,47 @@ export function UidManagementPage({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-                      <input
-                        type="text"
-                        defaultValue={tc.teacher_uid || tc.id}
-                        onChange={(e) => setEditingUids({ ...editingUids, [tc.id]: e.target.value })}
-                        placeholder="নতুন শিক্ষক UID দিন..."
-                        className="flex-1 text-xs font-sans font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-[#008955] focus:bg-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const auto = `TID ${Math.floor(100 + Math.random() * 900)}`;
-                          setEditingUids({ ...editingUids, [tc.id]: auto });
-                        }}
-                        className="px-2.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-[11px] font-bold border border-purple-200"
-                        title="অটো সিরিয়াল"
-                      >
-                        <Sparkles size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={loadingId === tc.id}
-                        onClick={() => handleSaveTeacherUid(tc)}
-                        className="px-3 py-1.5 rounded-xl bg-[#008955] hover:bg-[#007548] text-white text-[11px] font-bold transition active:scale-95 shadow-2xs flex items-center gap-1 shrink-0"
-                      >
-                        <RefreshCw size={11} />
-                        <span>আপডেট</span>
-                      </button>
+                    <div className="flex flex-col gap-1 pt-1 border-t border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          defaultValue={tc.teacher_uid || tc.id}
+                          onChange={(e) => handleUidInputChange(tc.id, e.target.value)}
+                          placeholder="নতুন শিক্ষক UID দিন..."
+                          className={`flex-1 text-xs font-sans font-bold border rounded-xl px-3 py-1.5 focus:outline-none ${
+                            uidErrors[tc.id]
+                              ? 'bg-rose-50 border-rose-300 text-rose-700 focus:border-rose-500'
+                              : 'bg-slate-50 border-slate-200 focus:border-[#008955] focus:bg-white'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const auto = `TID ${Math.floor(100 + Math.random() * 900)}`;
+                            handleUidInputChange(tc.id, auto);
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-[11px] font-bold border border-purple-200"
+                          title="অটো সিরিয়াল"
+                        >
+                          <Sparkles size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={loadingId === tc.id || Boolean(uidErrors[tc.id])}
+                          onClick={() => handleSaveTeacherUid(tc)}
+                          className="px-3 py-1.5 rounded-xl bg-[#008955] hover:bg-[#007548] text-white text-[11px] font-bold transition active:scale-95 shadow-2xs flex items-center gap-1 shrink-0 disabled:opacity-50"
+                        >
+                          <RefreshCw size={11} />
+                          <span>আপডেট</span>
+                        </button>
+                      </div>
+
+                      {uidErrors[tc.id] && (
+                        <p className="text-[10px] font-bold text-rose-600 animate-in fade-in flex items-center gap-1 px-1">
+                          <span>⚠️</span>
+                          <span>{uidErrors[tc.id]}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))
@@ -413,34 +479,47 @@ export function UidManagementPage({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-                      <input
-                        type="text"
-                        defaultValue={std.admissionNo || ''}
-                        onChange={(e) => setEditingUids({ ...editingUids, [std.id]: e.target.value })}
-                        placeholder="UID দিন (যেমন: UID-2026-01)"
-                        className="flex-1 text-xs font-sans font-bold bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:bg-white focus:outline-none focus:border-[#008955]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const roll = std.rollNo ? String(std.rollNo).padStart(2, '0') : '01';
-                          setEditingUids({ ...editingUids, [std.id]: `UID-2026-${roll}` });
-                        }}
-                        className="px-2 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-[11px] font-bold border border-purple-200"
-                        title="অটো সিরিয়াল"
-                      >
-                        <Sparkles size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={loadingId === std.id}
-                        onClick={() => handleSaveStudentUid(std)}
-                        className="px-3 py-1.5 rounded-xl bg-[#008955] text-white text-[11px] font-bold transition active:scale-95 shadow-2xs flex items-center gap-1"
-                      >
-                        <Check size={12} />
-                        <span>সেভ</span>
-                      </button>
+                    <div className="flex flex-col gap-1 pt-1 border-t border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          defaultValue={std.admissionNo || ''}
+                          onChange={(e) => handleUidInputChange(std.id, e.target.value)}
+                          placeholder="UID দিন (যেমন: UID-2026-01)"
+                          className={`flex-1 text-xs font-sans font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none ${
+                            uidErrors[std.id]
+                              ? 'bg-rose-50 border-rose-300 text-rose-700 focus:border-rose-500'
+                              : 'bg-slate-50 border-slate-200 focus:bg-white focus:border-[#008955]'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const roll = std.rollNo ? String(std.rollNo).padStart(2, '0') : '01';
+                            handleUidInputChange(std.id, `UID-2026-${roll}`);
+                          }}
+                          className="px-2 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-[11px] font-bold border border-purple-200"
+                          title="অটো সিরিয়াল"
+                        >
+                          <Sparkles size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={loadingId === std.id || Boolean(uidErrors[std.id])}
+                          onClick={() => handleSaveStudentUid(std)}
+                          className="px-3 py-1.5 rounded-xl bg-[#008955] text-white text-[11px] font-bold transition active:scale-95 shadow-2xs flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <Check size={12} />
+                          <span>সেভ</span>
+                        </button>
+                      </div>
+
+                      {uidErrors[std.id] && (
+                        <p className="text-[10px] font-bold text-rose-600 animate-in fade-in flex items-center gap-1 px-1">
+                          <span>⚠️</span>
+                          <span>{uidErrors[std.id]}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))

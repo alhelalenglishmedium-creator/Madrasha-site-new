@@ -12,9 +12,11 @@ import {
   Award,
   Sparkles,
   IdCard,
+  AlertTriangle,
 } from 'lucide-react';
 import type { Staff, StaffRole } from '@/types/database.types';
 import { supabase } from '@/lib/supabaseClient';
+import { checkUidAvailability } from '@/lib/uidUtils';
 
 interface TeacherFormModalProps {
   isOpen: boolean;
@@ -55,6 +57,31 @@ export function TeacherFormModal({
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [uidError, setUidError] = useState<string | null>(null);
+
+  // রিয়েল-টাইম শিক্ষক ইউআইডি (UID) ডুপ্লিকেট ভ্যালিডেশন চেক
+  useEffect(() => {
+    if (!teacherUid.trim()) {
+      setUidError(null);
+      return;
+    }
+    let isMounted = true;
+    const timer = setTimeout(async () => {
+      const res = await checkUidAvailability(teacherUid.trim(), initialData?.id);
+      if (isMounted) {
+        if (res.isTaken) {
+          setUidError(res.message || 'এই ইউআইডিটি ইতোমধ্যে ব্যবহৃত হচ্ছে! ভিন্ন ইউআইডি প্রবেশ করান।');
+        } else {
+          setUidError(null);
+        }
+      }
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [teacherUid, initialData]);
 
   const generateAutoUid = () => {
     const randomSerial = Math.floor(100 + Math.random() * 900);
@@ -191,6 +218,13 @@ export function TeacherFormModal({
     }
 
     const finalUid = teacherUid.trim() || generateAutoUid();
+
+    // ইউআইডি ডুপ্লিকেট সিকিউরিটি চেক
+    const uidCheck = await checkUidAvailability(finalUid, initialData?.id);
+    if (uidCheck.isTaken) {
+      setErrorMessage(uidCheck.message || 'এই ইউআইডিটি ইতোমধ্যে ব্যবহৃত হচ্ছে! ভিন্ন ইউআইডি প্রবেশ করান।');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -342,7 +376,11 @@ export function TeacherFormModal({
                 placeholder="যেমন: 101, T-101, 476 বা আপনার মনমতো ভ্যালু"
                 value={teacherUid}
                 onChange={(e) => setTeacherUid(e.target.value)}
-                className="flex-1 rounded-xl border border-[#BBE3D3] bg-[#E7F6ED] px-3 py-1.5 text-xs font-black font-sans text-[#008955] focus:border-[#008955] focus:bg-white focus:outline-none transition shadow-2xs"
+                className={`flex-1 rounded-xl border px-3 py-1.5 text-xs font-black font-sans focus:outline-none transition shadow-2xs ${
+                  uidError
+                    ? 'border-rose-300 bg-rose-50/50 text-rose-700 focus:border-rose-500'
+                    : 'border-[#BBE3D3] bg-[#E7F6ED] text-[#008955] focus:border-[#008955] focus:bg-white'
+                }`}
                 required
               />
               <button
@@ -355,6 +393,13 @@ export function TeacherFormModal({
                 <span>অটো</span>
               </button>
             </div>
+
+            {uidError && (
+              <div className="rounded-xl bg-rose-50 border border-rose-200 p-2 text-[10.5px] font-bold text-rose-600 animate-in fade-in flex items-center gap-1.5">
+                <AlertTriangle size={13} className="shrink-0 text-rose-500" />
+                <span>{uidError}</span>
+              </div>
+            )}
           </div>
 
           {/* পূর্ণ নাম */}

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
+import { checkUidAvailability } from '@/lib/uidUtils';
 import type { Staff } from '@/types/database.types';
 
 import { TeacherFormModal } from '@/components/admin/TeacherFormModal';
@@ -347,6 +348,13 @@ export default function StaffPage() {
       // ১. টার্গেট আইডি নির্ধারণ (এডিটিং মোডে ওই নির্দিষ্ট টিচারের ID ধরে রাখা)
       const targetId = (editingStaff?.id || formData.teacher_uid || formData.id || `T-${Math.floor(100 + Math.random() * 900)}`).trim();
       const teacherUid = (formData.teacher_uid || targetId).trim();
+
+      // ইউআইডি সিকিউরিটি ডুপ্লিকেট চেক
+      const uidCheck = await checkUidAvailability(teacherUid, editingStaff?.id);
+      if (uidCheck.isTaken) {
+        alert(uidCheck.message || 'এই ইউআইডিটি ইতোমধ্যে অন্যজনের জন্য ব্যবহৃত হচ্ছে!');
+        throw new Error(uidCheck.message);
+      }
 
       // যদি এডিটের সময় আইডি বা ইউআইডি পরিবর্তন হয়, তবে পুরানো আইডি ক্লিনআপ
       if (editingStaff?.id && editingStaff.id !== targetId) {
