@@ -225,31 +225,23 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, onLogou
             </div>
           </div>
 
-          {/* ২ ও ৩. পাশাপাশি ২টি ছোট কার্ড (রক্তের গ্রুপ ও কক্ষ নং) */}
-          <div className="grid grid-cols-2 gap-2.5">
-            
-            {/* রক্তের গ্রুপ */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 p-3 shadow-xs flex items-center gap-2.5">
-              <div className="h-8.5 w-8.5 rounded-xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-500/20">
-                <Droplet className="w-4 h-4" />
+          {/* ২. রক্তের গ্রুপ কার্ড */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-xs flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-500/20">
+                <Droplet className="w-4.5 h-4.5" />
               </div>
-              <div className="min-w-0">
-                <span className="text-[10px] text-slate-400 block font-medium">রক্তের গ্রুপ</span>
-                <span className="font-bold text-slate-900 text-xs truncate block">{student.bloodGroup || 'O+'}</span>
+              <div>
+                <span className="text-[10.5px] text-slate-500 block font-bold">রক্তের গ্রুপ (Blood Group)</span>
+                <span className="text-xs font-bold text-slate-800">অফিশিয়াল মেডিকেল রেকর্ড</span>
               </div>
             </div>
 
-            {/* ছাত্রাবাস সিট ও কক্ষ নং */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 p-3 shadow-xs flex items-center gap-2.5">
-              <div className="h-8.5 w-8.5 rounded-xl bg-gradient-to-tr from-indigo-500 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/20">
-                <Building2 className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] text-slate-400 block font-medium">ছাত্রাবাস সিট</span>
-                <span className="font-bold text-slate-900 text-xs truncate block">কক্ষ নং: ২০৪ (মুকিম)</span>
-              </div>
+            <div className="text-right">
+              <span className="text-sm font-black text-rose-600 font-sans bg-rose-50 border border-rose-200 px-3 py-1 rounded-xl inline-block">
+                {student.bloodGroup || (student as any).blood_group || 'নির্ধারিত নেই'}
+              </span>
             </div>
-
           </div>
 
         </div>

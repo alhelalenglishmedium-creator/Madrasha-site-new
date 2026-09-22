@@ -242,7 +242,7 @@ export function StudentFormModal({
         phone: initialData.phone || (existingContacts[0]?.phone || ''),
         guardianContacts: existingContacts,
         address: initialData.address || '',
-        bloodGroup: initialData.bloodGroup || '',
+        bloodGroup: initialData.bloodGroup || (initialData as any).blood_group || '',
         monthlyFee: initialData.monthlyFee || 0,
         photoUrl: initialData.photoUrl || '',
         status: (initialData.status as any) || 'active',
