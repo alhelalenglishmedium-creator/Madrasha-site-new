@@ -1,14 +1,24 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Receipt, CheckCircle, Search, Sparkles, UserCheck, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Receipt, CheckCircle, Search, Sparkles, AlertCircle } from 'lucide-react';
 import type { Student, PaymentMethod } from '@/types/database.types';
+
+const BENGALI_MONTHS = [
+  'জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
+  'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'
+];
+
+const toBengaliNumber = (num: number | string): string => {
+  return num.toString().replace(/\d/g, (d) => '০১২৩৪৫৬৭৮৯'[parseInt(d, 10)]);
+};
 
 interface FeeCollectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   student?: Student | null;
   studentsList?: Student[];
+  initialMonth?: string; // e.g. "2026-09" or "সেপ্টেম্বর ২০২৬"
   onSavePayment: (paymentData: {
     studentId: string;
     amount: number;
@@ -25,13 +35,28 @@ export function FeeCollectionModal({
   onClose,
   student,
   studentsList = [],
+  initialMonth,
   onSavePayment,
 }: FeeCollectionModalProps) {
+  const currentYear = new Date().getFullYear();
+  const currentMonthIdx = new Date().getMonth();
+
+  // ১২ মাসের ডায়নামিক অপশন তালিকা তৈরি
+  const monthOptions = useMemo(() => {
+    return BENGALI_MONTHS.map((m, idx) => {
+      const monthKey = `${currentYear}-${String(idx + 1).padStart(2, '0')}`;
+      const label = `${m} ${toBengaliNumber(currentYear)}`;
+      return { key: monthKey, label };
+    });
+  }, [currentYear]);
+
+  const defaultMonthLabel = `${BENGALI_MONTHS[currentMonthIdx]} ${toBengaliNumber(currentYear)}`;
+
   const [searchUid, setSearchUid] = useState('');
   const [activeStudent, setActiveStudent] = useState<Student | null>(null);
-  const [amount, setAmount] = useState<number>(1000);
+  const [amount, setAmount] = useState<number | ''>(1000);
   const [feeType, setFeeType] = useState('মাসিক বেতন');
-  const [month, setMonth] = useState('সেপ্টেম্বর ২০২৬');
+  const [month, setMonth] = useState(defaultMonthLabel);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [notes, setNotes] = useState('');
@@ -39,22 +64,29 @@ export function FeeCollectionModal({
   const [errorMessage, setErrorMessage] = useState('');
   const [searchError, setSearchError] = useState('');
 
-  // মডাল ওপেন হলে অথবা সরাসরি স্টুডেন্ট কার্ড থেকে আসলে ডাটা ইনিশিয়ালাইজ করা
+  // মডাল ওপেন হলে ডাটা ইনিশিয়ালাইজেশন
   useEffect(() => {
     if (student) {
       setActiveStudent(student);
-      setSearchUid(student.rollNo || student.id || '');
+      setSearchUid(student.rollNo?.toString() || student.admissionNo || '');
       setAmount(student.monthlyFee || 1000);
     } else {
       setActiveStudent(null);
       setSearchUid('');
       setAmount(1000);
     }
+
+    if (initialMonth) {
+      setMonth(initialMonth);
+    } else {
+      setMonth(defaultMonthLabel);
+    }
+
     setErrorMessage('');
     setSearchError('');
-  }, [student, isOpen]);
+  }, [student, isOpen, initialMonth, defaultMonthLabel]);
 
-  // ইউআইডি (UID) বা রোল দিয়ে শিক্ষার্থী খোঁজা
+  // শিক্ষার্থী সার্চ
   const handleSearchStudent = () => {
     setSearchError('');
     if (!searchUid.trim()) {
@@ -95,10 +127,10 @@ export function FeeCollectionModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeStudent) {
-      setErrorMessage('অনুগ্রহ করে সঠিক ইউআইডি দিয়ে শিক্ষার্থী নির্বাচন নিশ্চিত করুন!');
+      setErrorMessage('অনুগ্রহ করে সঠিক শিক্ষার্থী নির্বাচন নিশ্চিত করুন!');
       return;
     }
-    if (!amount || amount <= 0) {
+    if (!amount || Number(amount) <= 0) {
       setErrorMessage('সঠিক টাকার পরিমাণ প্রদান করুন!');
       return;
     }
@@ -124,9 +156,9 @@ export function FeeCollectionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
       <div className="relative max-h-[92vh] w-full max-w-md overflow-y-auto rounded-[32px] bg-[#F7FBF9] p-5 sm:p-6 shadow-2xl border border-[#DFECE5] no-scrollbar">
-        
+
         {/* হেডার */}
         <div className="flex items-center justify-between pb-3.5 border-b border-[#E7F0EB]">
           <div className="flex items-center gap-3">
@@ -135,7 +167,7 @@ export function FeeCollectionModal({
             </div>
             <div>
               <h2 className="text-sm font-bold text-[#1F2937]">ফি আদায় ও রসিদ তৈরি</h2>
-              <p className="text-[11px] text-[#008955] font-medium">ইউআইডি দিয়ে সরাসরি ফি জমা করুন</p>
+              <p className="text-[11px] text-[#008955] font-medium">মাস নির্বাচন করে ফি গ্রহণ করুন</p>
             </div>
           </div>
           <button
@@ -155,29 +187,27 @@ export function FeeCollectionModal({
         )}
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-3.5">
-          
-          {/* ১. ইউআইডি দিন (UID Search Field) */}
+
+          {/* ১. শিক্ষার্থী সার্চ (যদি বাইরে থেকে সিলেক্ট হয়ে না আসে) */}
           {!student && (
             <div>
               <label className="text-[11px] font-bold text-[#374151] block mb-1 px-1">
                 শিক্ষার্থীর ইউআইডি / আইডি / রোল দিন *
               </label>
               <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    placeholder="যেমন: UID-2026-01 বা ০১"
-                    value={searchUid}
-                    onChange={(e) => setSearchUid(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleSearchStudent();
-                      }
-                    }}
-                    className="w-full rounded-2xl border border-[#D9E7E0] bg-white px-3.5 py-2.5 text-xs font-bold text-[#1F2937] placeholder-[#9CA3AF] focus:border-[#008955] focus:outline-none shadow-2xs font-sans"
-                  />
-                </div>
+                <input
+                  type="text"
+                  placeholder="যেমন: UID-2026-01 বা ০১"
+                  value={searchUid}
+                  onChange={(e) => setSearchUid(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSearchStudent();
+                    }
+                  }}
+                  className="flex-1 rounded-2xl border border-[#D9E7E0] bg-white px-3.5 py-2.5 text-xs font-bold text-[#1F2937] placeholder-[#9CA3AF] focus:border-[#008955] focus:outline-none shadow-2xs font-sans"
+                />
                 <button
                   type="button"
                   onClick={handleSearchStudent}
@@ -197,9 +227,9 @@ export function FeeCollectionModal({
             </div>
           )}
 
-          {/* ২. খুঁজে পাওয়া শিক্ষার্থীর ইনফো কার্ড */}
+          {/* ২. নির্বাচিত শিক্ষার্থীর ইনফো কার্ড */}
           {activeStudent ? (
-            <div className="rounded-[22px] bg-white border border-[#BBE3D3] p-3.5 flex items-center justify-between shadow-2xs animate-in fade-in">
+            <div className="rounded-[22px] bg-white border border-[#BBE3D3] p-3.5 flex items-center justify-between shadow-2xs">
               <div className="flex items-center gap-3">
                 <div className="h-11 w-11 rounded-2xl bg-[#008955] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0 font-sans">
                   {activeStudent.fullNameBangla?.charAt(0) || activeStudent.fullName?.charAt(0) || 'ছা'}
@@ -235,7 +265,7 @@ export function FeeCollectionModal({
             </div>
           )}
 
-          {/* ৩. ফি এর ধরণ (খাত) ও মাস */}
+          {/* ৩. ফি এর খাত ও মাসের ড্রপডাউন সিলেক্টর */}
           <div className="grid grid-cols-2 gap-2.5">
             <div>
               <label className="text-[11px] font-bold text-[#374151] block mb-1 px-1">
@@ -244,7 +274,7 @@ export function FeeCollectionModal({
               <select
                 value={feeType}
                 onChange={(e) => setFeeType(e.target.value)}
-                className="w-full rounded-2xl border border-[#D9E7E0] bg-white px-3 py-2 text-xs font-bold text-[#1F2937] focus:border-[#008955] focus:outline-none shadow-2xs cursor-pointer"
+                className="w-full rounded-2xl border border-[#D9E7E0] bg-white px-3 py-2.5 text-xs font-bold text-[#1F2937] focus:border-[#008955] focus:outline-none shadow-2xs cursor-pointer"
               >
                 <option value="মাসিক বেতন">মাসিক বেতন</option>
                 <option value="ভর্তি ফি">ভর্তি ফি</option>
@@ -257,19 +287,23 @@ export function FeeCollectionModal({
 
             <div>
               <label className="text-[11px] font-bold text-[#374151] block mb-1 px-1">
-                মাস / সেশন
+                মাস নির্বাচন করুন *
               </label>
-              <input
-                type="text"
-                placeholder="যেমন: সেপ্টেম্বর ২০২৬"
+              <select
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
-                className="w-full rounded-2xl border border-[#D9E7E0] bg-white px-3 py-2 text-xs font-medium text-[#1F2937] focus:border-[#008955] focus:outline-none shadow-2xs"
-              />
+                className="w-full rounded-2xl border border-[#D9E7E0] bg-white px-3 py-2.5 text-xs font-bold text-[#008955] focus:border-[#008955] focus:outline-none shadow-2xs cursor-pointer"
+              >
+                {monthOptions.map((opt) => (
+                  <option key={opt.key} value={opt.label}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
-          {/* ৪. টাকার পরিমাণ ও তারিখ */}
+          {/* ৪. টাকার পরিমাণ ও জমার তারিখ */}
           <div className="grid grid-cols-2 gap-2.5">
             <div>
               <label className="text-[11px] font-bold text-[#374151] block mb-1 px-1">
@@ -277,9 +311,10 @@ export function FeeCollectionModal({
               </label>
               <input
                 type="number"
-                value={amount}
-                onChange={(e) => setAmount(Number(e.target.value))}
+                value={amount === '' ? '' : amount}
+                onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
                 className="w-full rounded-2xl border border-[#D9E7E0] bg-white px-3.5 py-2 text-sm font-black text-[#008955] focus:border-[#008955] focus:outline-none shadow-2xs"
+                placeholder="0"
                 required
               />
             </div>
