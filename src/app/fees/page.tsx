@@ -38,6 +38,7 @@ interface StudentDueInfo {
   student: Student;
   totalDueMonths: number;
   unpaidMonths: string[]; // e.g. ["2026-07", "2026-08"]
+  paidMonths: string[]; // e.g. ["2026-09"]
   totalDueAmount: number;
   totalPaidAmount: number;
   payments: PaymentWithStudent[];
@@ -210,6 +211,7 @@ export default function FeesPage() {
         student: std,
         totalDueMonths: unpaidMonths.length,
         unpaidMonths,
+        paidMonths: Array.from(paidMonthsSet),
         totalDueAmount,
         totalPaidAmount,
         payments: studentPayments,
@@ -747,8 +749,22 @@ export default function FeesPage() {
                   </div>
                 </div>
 
+                {/* সরাসরি ফি আদায় বাটন */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreselectedStudent(selectedStudentHistory.student);
+                    setSelectedStudentHistory(null);
+                    setIsModalOpen(true);
+                  }}
+                  className="w-full py-2.5 px-4 rounded-2xl bg-[#008955] hover:bg-[#007347] text-white text-xs font-black shadow-md flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer my-2 shrink-0"
+                >
+                  <Receipt size={16} />
+                  <span>ফি আদায় করুন (Collect Fee)</span>
+                </button>
+
                 {/* বকেয়া ও আদায় সারাংশ বক্স */}
-                <div className="my-2.5 grid grid-cols-2 gap-2">
+                <div className="mb-2.5 grid grid-cols-2 gap-2">
                   <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-100 text-center">
                     <span className="text-[10px] font-bold text-emerald-800 block">মোট পরিশোধ</span>
                     <span className="text-sm font-black text-[#008955] font-sans">
@@ -764,11 +780,32 @@ export default function FeesPage() {
                   </div>
                 </div>
 
-                {/* বাকি থাকা মাসসমূহের তালিকা */}
+                {/* পরিশোধিত মাসসমূহের তালিকা (সবুজ কালার) */}
+                {selectedStudentHistory.paidMonths && selectedStudentHistory.paidMonths.length > 0 && (
+                  <div className="mb-2 p-2 rounded-xl bg-emerald-50/80 border border-emerald-200">
+                    <span className="text-[10px] font-bold text-[#008955] flex items-center gap-1 mb-1">
+                      <CheckCircle2 size={12} className="text-[#008955]" />
+                      <span>পরিশোধিত মাসসমূহ (Paid):</span>
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedStudentHistory.paidMonths.map((m) => (
+                        <span
+                          key={m}
+                          className="text-[9px] font-bold bg-white text-[#008955] px-2 py-0.5 rounded-md border border-emerald-200 font-sans"
+                        >
+                          {m} (পরিশোধিত)
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* বাকি থাকা মাসসমূহের তালিকা (লাল কালার) */}
                 {selectedStudentHistory.unpaidMonths.length > 0 && (
-                  <div className="mb-2 p-2 rounded-xl bg-rose-50/70 border border-rose-200">
-                    <span className="text-[10px] font-bold text-rose-700 block mb-1">
-                      ⚠️ যে যে মাসের ফি এখনো বাকি:
+                  <div className="mb-2 p-2 rounded-xl bg-rose-50/80 border border-rose-200">
+                    <span className="text-[10px] font-bold text-rose-700 flex items-center gap-1 mb-1">
+                      <AlertTriangle size={12} className="text-rose-600" />
+                      <span>যে যে মাসের ফি এখনো বাকি (Unpaid):</span>
                     </span>
                     <div className="flex flex-wrap gap-1">
                       {selectedStudentHistory.unpaidMonths.map((m) => (
@@ -776,7 +813,7 @@ export default function FeesPage() {
                           key={m}
                           className="text-[9px] font-bold bg-white text-rose-600 px-2 py-0.5 rounded-md border border-rose-200 font-sans"
                         >
-                          {m}
+                          {m} (বকেয়া)
                         </span>
                       ))}
                     </div>
@@ -822,6 +859,7 @@ export default function FeesPage() {
             setIsModalOpen(false);
             setPreselectedStudent(null);
           }}
+          student={preselectedStudent}
           studentsList={studentsList}
           onSavePayment={handleSavePayment}
         />
