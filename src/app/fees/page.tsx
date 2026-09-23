@@ -34,15 +34,81 @@ interface PaymentWithStudent extends FeePayment {
 type ViewFilter = 'paid' | 'due';
 type TimeScope = 'current_month' | 'all_time';
 
+interface RunningMonthStatus {
+  key: string;
+  label: string;
+  isPaid: boolean;
+}
+
 interface StudentDueInfo {
   student: Student;
   totalDueMonths: number;
   unpaidMonths: string[]; // e.g. ["2026-07", "2026-08"]
   paidMonths: string[]; // e.g. ["2026-09"]
+  runningMonths: RunningMonthStatus[];
+  totalExpectedFee: number;
   totalDueAmount: number;
   totalPaidAmount: number;
   payments: PaymentWithStudent[];
 }
+
+const BENGALI_MONTHS = [
+  'জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
+  'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'
+];
+
+const BENGALI_TO_ENG_DIGITS: Record<string, string> = {
+  '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+  '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
+};
+
+const toEnglishDigitsStr = (str: string): string => {
+  return str.replace(/[০-৯]/g, (w) => BENGALI_TO_ENG_DIGITS[w] || w);
+};
+
+const normalizeMonthKey = (rawMonth?: string, paymentDate?: string): string => {
+  if (!rawMonth && !paymentDate) return '';
+  const str = toEnglishDigitsStr(rawMonth || paymentDate || '').trim();
+
+  // Try matching YYYY-MM or YYYY-M
+  const yyyyMmMatch = str.match(/(\d{4})[-/](\d{1,2})/);
+  if (yyyyMmMatch) {
+    const y = yyyyMmMatch[1];
+    const m = String(parseInt(yyyyMmMatch[2], 10)).padStart(2, '0');
+    return `${y}-${m}`;
+  }
+
+  // Try matching Bengali month name and year
+  for (let i = 0; i < BENGALI_MONTHS.length; i++) {
+    const bMonth = BENGALI_MONTHS[i];
+    if (rawMonth && rawMonth.includes(bMonth)) {
+      const yearMatch = str.match(/\d{4}/);
+      const year = yearMatch ? yearMatch[0] : new Date().getFullYear().toString();
+      const monthNum = String(i + 1).padStart(2, '0');
+      return `${year}-${monthNum}`;
+    }
+  }
+
+  if (paymentDate && paymentDate.length >= 7) {
+    return paymentDate.slice(0, 7);
+  }
+
+  return str;
+};
+
+const formatMonthBengali = (monthKey: string): string => {
+  const normKey = normalizeMonthKey(monthKey);
+  const parts = normKey.split('-');
+  if (parts.length === 2) {
+    const year = parts[0];
+    const monthIdx = parseInt(parts[1], 10) - 1;
+    if (monthIdx >= 0 && monthIdx < 12) {
+      const banglaYear = year.replace(/\d/g, (d) => '০১২৩৪৫৬৭৮৯'[parseInt(d, 10)]);
+      return `${BENGALI_MONTHS[monthIdx]} ${banglaYear}`;
+    }
+  }
+  return monthKey;
+};
 
 export default function FeesPage() {
   const [payments, setPayments] = useState<PaymentWithStudent[]>([]);
@@ -178,14 +244,15 @@ export default function FeesPage() {
       const paidMonthsSet = new Set<string>();
 
       studentPayments.forEach((p) => {
-        if (p.month) {
-          paidMonthsSet.add(p.month);
-        } else if (p.paymentDate) {
-          paidMonthsSet.add(p.paymentDate.slice(0, 7));
+        const normKey = normalizeMonthKey(p.month, p.paymentDate);
+        if (normKey) {
+          paidMonthsSet.add(normKey);
         }
       });
 
       const unpaidMonths: string[] = [];
+      const paidMonthsList: string[] = [];
+      const runningMonths: RunningMonthStatus[] = [];
 
       // মাস গণনা (ভর্তির মাস হতে চলতি মাস পর্যন্ত)
       let y = startYear;
@@ -193,9 +260,20 @@ export default function FeesPage() {
 
       while (y < currentYear || (y === currentYear && m <= currentMonthNum)) {
         const monthStr = `${y}-${String(m + 1).padStart(2, '0')}`;
-        if (!paidMonthsSet.has(monthStr)) {
+        const isPaid = paidMonthsSet.has(monthStr);
+
+        if (isPaid) {
+          paidMonthsList.push(monthStr);
+        } else {
           unpaidMonths.push(monthStr);
         }
+
+        runningMonths.push({
+          key: monthStr,
+          label: formatMonthBengali(monthStr),
+          isPaid,
+        });
+
         m++;
         if (m > 11) {
           m = 0;
@@ -204,16 +282,20 @@ export default function FeesPage() {
       }
 
       const monthlyFee = Number(std.monthlyFee) || 0;
-      const totalDueAmount = unpaidMonths.length * monthlyFee;
+      const totalExpectedFee = runningMonths.length * monthlyFee;
       const totalPaidAmount = studentPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      // গাণিতিক মাইনাস: মোট বাকি = মোট প্রাক্কলিত ফি - মোট পরিশোধকৃত টাকা
+      const totalDueAmount = Math.max(0, totalExpectedFee - totalPaidAmount);
 
       summaryMap.set(std.id, {
         student: std,
         totalDueMonths: unpaidMonths.length,
         unpaidMonths,
-        paidMonths: Array.from(paidMonthsSet),
-        totalDueAmount,
+        paidMonths: paidMonthsList,
+        runningMonths,
+        totalExpectedFee,
         totalPaidAmount,
+        totalDueAmount,
         payments: studentPayments,
       });
     });
@@ -780,40 +862,24 @@ export default function FeesPage() {
                   </div>
                 </div>
 
-                {/* পরিশোধিত মাসসমূহের তালিকা (সবুজ কালার) */}
-                {selectedStudentHistory.paidMonths && selectedStudentHistory.paidMonths.length > 0 && (
-                  <div className="mb-2 p-2 rounded-xl bg-emerald-50/80 border border-emerald-200">
-                    <span className="text-[10px] font-bold text-[#008955] flex items-center gap-1 mb-1">
-                      <CheckCircle2 size={12} className="text-[#008955]" />
-                      <span>পরিশোধিত মাসসমূহ (Paid):</span>
+                {/* রানিং মাসসমূহের তালিকা (একক বাক্সে পরিশোধিত সবুজ ও বকেয়া লাল) */}
+                {selectedStudentHistory.runningMonths && selectedStudentHistory.runningMonths.length > 0 && (
+                  <div className="mb-2.5 p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+                    <span className="text-[10.5px] font-bold text-slate-700 flex items-center gap-1 mb-1.5">
+                      <Layers size={13} className="text-[#008955]" />
+                      <span>রানিং মাসসমূহের ফি অবস্থা (ভর্তির মাস হতে চলতি মাস):</span>
                     </span>
                     <div className="flex flex-wrap gap-1">
-                      {selectedStudentHistory.paidMonths.map((m) => (
+                      {selectedStudentHistory.runningMonths.map((m) => (
                         <span
-                          key={m}
-                          className="text-[9px] font-bold bg-white text-[#008955] px-2 py-0.5 rounded-md border border-emerald-200 font-sans"
+                          key={m.key}
+                          className={`text-[9.5px] font-bold px-2 py-0.5 rounded-md border ${
+                            m.isPaid
+                              ? 'bg-emerald-100/90 text-[#008955] border-emerald-300'
+                              : 'bg-rose-50 text-rose-600 border-rose-200'
+                          }`}
                         >
-                          {m} (পরিশোধিত)
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* বাকি থাকা মাসসমূহের তালিকা (লাল কালার) */}
-                {selectedStudentHistory.unpaidMonths.length > 0 && (
-                  <div className="mb-2 p-2 rounded-xl bg-rose-50/80 border border-rose-200">
-                    <span className="text-[10px] font-bold text-rose-700 flex items-center gap-1 mb-1">
-                      <AlertTriangle size={12} className="text-rose-600" />
-                      <span>যে যে মাসের ফি এখনো বাকি (Unpaid):</span>
-                    </span>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedStudentHistory.unpaidMonths.map((m) => (
-                        <span
-                          key={m}
-                          className="text-[9px] font-bold bg-white text-rose-600 px-2 py-0.5 rounded-md border border-rose-200 font-sans"
-                        >
-                          {m} (বকেয়া)
+                          {m.label} {m.isPaid ? '(পরিশোধিত)' : '(বকেয়া)'}
                         </span>
                       ))}
                     </div>
