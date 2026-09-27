@@ -1959,9 +1959,19 @@ export function AdminDashboard() {
           const payId = `fee_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
           const recNo = `REC-${Date.now().toString().slice(-6)}`;
           const nowIso = new Date().toISOString();
+          const feeTypeName = d.feeTypeId || (d as any).feeType || 'মাসিক বেতন';
+          const paymentNotes = d.notes || (d as any).note || '';
+          const actualPaidAt = d.paymentDate
+            ? (d.paymentDate.includes('T') ? d.paymentDate : `${d.paymentDate}T12:00:00Z`)
+            : nowIso;
 
           await localDb.feePayments.add({
             ...d,
+            feeTypeId: feeTypeName,
+            feeType: feeTypeName,
+            notes: paymentNotes,
+            note: paymentNotes,
+            paymentDate: d.paymentDate || nowIso.split('T')[0],
             id: payId,
             receiptNo: recNo,
             synced: true,
@@ -1972,10 +1982,12 @@ export function AdminDashboard() {
             await supabase.from('student_fees').insert([{
               student_id: d.studentId,
               amount: Number(d.amount) || 0,
+              fee_type: feeTypeName,
               month: d.month || 'চলতি মাস',
               payment_method: d.paymentMethod || 'cash',
               receipt_no: recNo,
-              paid_at: nowIso,
+              note: paymentNotes,
+              paid_at: actualPaidAt,
               created_at: nowIso,
             }]);
           } catch (e) {}

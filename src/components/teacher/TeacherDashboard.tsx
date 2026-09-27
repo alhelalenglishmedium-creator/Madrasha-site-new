@@ -19,6 +19,7 @@ import {
   X,
   BellRing,
   Megaphone,
+  BookOpen,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { localDb } from '@/db/localDb';
@@ -29,6 +30,7 @@ import { TeacherBottomNav, type TeacherTab } from './TeacherBottomNav';
 import { TeacherAttendanceSheet } from './TeacherAttendanceSheet';
 import { TeacherHadiyaTab, type SalaryRecord } from './TeacherHadiyaTab';
 import { TeacherProfile } from './TeacherProfile';
+import { SabakEntryModal, type SabakRecord } from './SabakEntryModal';
 import { DashboardHeader } from '@/components/common/DashboardHeader';
 import type { Notice } from '@/components/admin/NoticeModal';
 import { PrayerScheduleModal } from '../student/PrayerScheduleModal';
@@ -68,8 +70,55 @@ export function TeacherDashboard() {
   const [isPrayerModalOpen, setIsPrayerModalOpen] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
+  // সবক ট্র্যাকিং স্টেট
+  const [isSabakModalOpen, setIsSabakModalOpen] = useState<boolean>(false);
+  const [selectedSabakStudent, setSelectedSabakStudent] = useState<Student | null>(null);
+  const [sabakSuccessToast, setSabakSuccessToast] = useState<string>('');
+
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const currentMonthISO = useMemo(() => new Date().toISOString().slice(0, 7), []);
+
+  const handleSaveSabak = async (record: SabakRecord) => {
+    const sabakId = `sbk_${Date.now()}`;
+    const nowIso = new Date().toISOString();
+
+    try {
+      if (localDb.sabakRecords) {
+        await localDb.sabakRecords.add({
+          id: sabakId,
+          studentId: record.studentId,
+          date: record.date,
+          newSabak: record.newSabak,
+          sabki: record.sabki,
+          satpara: record.satpara,
+          grade: record.grade,
+          remark: record.remark || '',
+          synced: true,
+          createdAt: nowIso,
+        });
+      }
+    } catch (e) {
+      console.warn('Local sabak save warning:', e);
+    }
+
+    try {
+      await supabase.from('sabak_records').insert([{
+        student_id: record.studentId,
+        date: record.date,
+        new_sabak: record.newSabak,
+        sabki: record.sabki,
+        satpara: record.satpara,
+        grade: record.grade,
+        remark: record.remark || null,
+        created_at: nowIso,
+      }]);
+    } catch (e) {
+      console.warn('Supabase sabak insert warning:', e);
+    }
+
+    setSabakSuccessToast('সবক সফলভাবে সংরক্ষিত হয়েছে!');
+    setTimeout(() => setSabakSuccessToast(''), 3000);
+  };
 
   // প্রতি সেকেন্ডে লাইভ কাউন্টডাউন টিক
   useEffect(() => {
@@ -664,6 +713,33 @@ export function TeacherDashboard() {
                 </button>
               </div>
 
+              {/* প্রধান অ্যাকশন বাটন ২: দৈনিক সবক ও রিভিশন এন্ট্রি */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSabakStudent(null);
+                    setIsSabakModalOpen(true);
+                  }}
+                  className="w-full py-3 px-4 rounded-2xl bg-white border border-emerald-200/90 hover:border-[#008955] text-slate-800 text-xs font-bold shadow-2xs active:scale-[0.99] transition flex items-center justify-between cursor-pointer group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-xl bg-emerald-50 text-[#008955] flex items-center justify-center group-hover:bg-[#008955] group-hover:text-white transition">
+                      <BookOpen size={18} />
+                    </div>
+                    <div className="text-left">
+                      <p className="leading-tight font-bold text-slate-900">
+                        দৈনিক সবক ও রিভিশন এন্ট্রি
+                      </p>
+                      <span className="text-[10px] text-slate-500 block mt-0.5">
+                        আজকের নতুন পাঠ, সবকি ও সাতপারা রেকর্ড করুন
+                      </span>
+                    </div>
+                  </div>
+                  <ArrowRight size={16} className="text-slate-400 group-hover:text-[#008955] transition" />
+                </button>
+              </div>
+
               {/* শিক্ষার্থী ও অভিভাবক যোগাযোগ তালিকা */}
               <div className="space-y-2 pt-1 pb-10">
                 <div className="flex items-center justify-between px-1">
@@ -897,6 +973,23 @@ export function TeacherDashboard() {
 
             </div>
           </div>
+        </div>
+      )}
+
+      {/* কুরআন সবক এন্ট্রি মোডাল */}
+      <SabakEntryModal
+        isOpen={isSabakModalOpen}
+        onClose={() => setIsSabakModalOpen(false)}
+        student={selectedSabakStudent}
+        studentsList={students}
+        onSaveSabak={handleSaveSabak}
+      />
+
+      {/* সবক সংরক্ষণ টোস্ট */}
+      {sabakSuccessToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[200] bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2 text-xs font-bold animate-in fade-in slide-in-from-bottom-2">
+          <CheckCircle2 size={16} className="text-emerald-400" />
+          <span>{sabakSuccessToast}</span>
         </div>
       )}
 

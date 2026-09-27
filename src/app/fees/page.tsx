@@ -188,8 +188,19 @@ export default function FeesPage() {
       const receiptNumber = `REC-${Date.now().toString().slice(-6)}`;
       const now = new Date().toISOString();
 
+      const feeTypeName = paymentData.feeTypeId || paymentData.feeType || 'মাসিক বেতন';
+      const paymentNotes = paymentData.notes || paymentData.note || '';
+      const actualPaidAt = paymentData.paymentDate
+        ? (paymentData.paymentDate.includes('T') ? paymentData.paymentDate : `${paymentData.paymentDate}T12:00:00Z`)
+        : now;
+
       const newPayment: FeePayment = {
         ...paymentData,
+        feeTypeId: feeTypeName,
+        feeType: feeTypeName,
+        notes: paymentNotes,
+        note: paymentNotes,
+        paymentDate: paymentData.paymentDate || now.split('T')[0],
         id: paymentId,
         receiptNo: receiptNumber,
         synced: true,
@@ -202,10 +213,12 @@ export default function FeesPage() {
         const { error: supaErr } = await supabase.from('student_fees').insert([{
           student_id: paymentData.studentId,
           amount: Number(paymentData.amount) || 0,
-          month: paymentData.month,
+          fee_type: feeTypeName,
+          month: paymentData.month || 'চলতি মাস',
           payment_method: paymentData.paymentMethod || 'cash',
           receipt_no: receiptNumber,
-          paid_at: now,
+          note: paymentNotes,
+          paid_at: actualPaidAt,
           created_at: now,
         }]);
 

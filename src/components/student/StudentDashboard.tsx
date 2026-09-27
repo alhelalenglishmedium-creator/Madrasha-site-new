@@ -36,6 +36,9 @@ import { StudentBottomNav } from './StudentBottomNav';
 import { StudentRoutine } from './StudentRoutine';
 import { StudentProfile } from './StudentProfile';
 import { StudentFeeTab } from './StudentFeeTab';
+import { StudentStudyView } from './StudentStudyView';
+import { MadrasaStudentHome } from './MadrasaStudentHome';
+import { SchoolStudentHome } from './SchoolStudentHome';
 import { PrayerScheduleModal } from './PrayerScheduleModal';
 import { DashboardHeader } from '@/components/common/DashboardHeader';
 import { ImagePreviewModal } from '@/components/common/ImagePreviewModal';
@@ -93,7 +96,7 @@ function formatBengaliPosition(pos: number): string {
 
 export function StudentDashboard() {
   const { user, logout } = useAuth?.() || { user: null, logout: () => {} };
-  const { setInstitutionByType } = useInstitution();
+  const { currentInstitution, setInstitutionByType } = useInstitution();
   const [activeTab, setActiveTab] = useState<StudentTab>('home');
   const [student, setStudent] = useState<Student | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string; subtitle?: string } | null>(null);
@@ -174,8 +177,8 @@ export function StudentDashboard() {
 
           return (
             (authUserId && (rId === authUserId || rAdm === authUserId)) ||
-            (cleanUid && (rId === cleanUid || rAdm === cleanUid || rRoll === cleanUid || rId.includes(cleanUid) || rAdm.includes(cleanUid))) ||
-            (onlyDigits && (rId.endsWith(onlyDigits) || rAdm.endsWith(onlyDigits) || rRoll === onlyDigits)) ||
+            (cleanUid && (rId === cleanUid || rAdm === cleanUid || rRoll === cleanUid)) ||
+            (onlyDigits && onlyDigits.length >= 3 && (rId.endsWith(onlyDigits) || rAdm.endsWith(onlyDigits))) ||
             (uPhone && rPhone === uPhone) ||
             (uEmail && rEmail === uEmail)
           );
@@ -327,15 +330,37 @@ export function StudentDashboard() {
               .select('*')
               .in('student_id', candidateIds);
 
-            if (feeErr) {
-              console.warn('Fee fetch error:', feeErr.message);
-            } else if (feeData && feeData.length > 0) {
-              setIsFeePaidThisMonth(true);
+            let allFees: any[] = [];
+            if (!feeErr && feeData && feeData.length > 0) {
+              allFees = feeData;
             } else {
               const localFee = await localDb.feePayments.toArray();
-              const hasLocal = localFee.some((p) => candidateIds.includes(String(p.studentId).trim()));
-              if (hasLocal) setIsFeePaidThisMonth(true);
+              allFees = localFee.filter((p) => candidateIds.includes(String(p.studentId).trim()));
             }
+
+            const now = new Date();
+            const currentMonthISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const currentMonthIdx = now.getMonth();
+            const BENGALI_MONTHS = ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'];
+            const ENGLISH_MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+            const currentMonthBn = BENGALI_MONTHS[currentMonthIdx];
+            const currentMonthEn = ENGLISH_MONTHS[currentMonthIdx];
+            const currentYear = now.getFullYear().toString();
+            const currentMonthNum = currentMonthIdx + 1;
+
+            const isPaid = allFees.some((f) => {
+              const mStr = String(f.month || '').toLowerCase();
+              const pDate = String(f.paid_at || f.paymentDate || f.created_at || '');
+              return (
+                pDate.startsWith(currentMonthISO) ||
+                mStr.includes(currentMonthISO) ||
+                mStr.includes(currentMonthBn.toLowerCase()) ||
+                mStr.includes(currentMonthEn) ||
+                (mStr.includes(currentYear) && mStr.includes(String(currentMonthNum)))
+              );
+            });
+
+            setIsFeePaidThisMonth(isPaid);
           }
         } catch (e: any) {
           console.warn('Network error (fees):', e?.message || e);
@@ -454,13 +479,39 @@ export function StudentDashboard() {
             )
           );
 
-          const { data: classResults, error: resultError } = await supabase
-            .from('exam_results')
-            .select('*')
-            .or(`class_name.eq."${activeClassName}",student_id.in.(${candidateIds.map(id => `"${id}"`).join(',')})`)
-            .order('created_at', { ascending: false });
+          let classResults: any[] = [];
+          try {
+            if (activeClassName) {
+              const { data: clsData } = await supabase
+                .from('exam_results')
+                .select('*')
+                .eq('class_name', activeClassName)
+                .order('created_at', { ascending: false });
+              if (clsData && clsData.length > 0) {
+                classResults = clsData;
+              }
+            }
 
-          if (!resultError && classResults && classResults.length > 0) {
+            if (candidateIds.length > 0) {
+              const { data: stdData } = await supabase
+                .from('exam_results')
+                .select('*')
+                .in('student_id', candidateIds)
+                .order('created_at', { ascending: false });
+              if (stdData && stdData.length > 0) {
+                const existingIds = new Set(classResults.map((r: any) => String(r.id)));
+                for (const r of stdData) {
+                  if (!existingIds.has(String(r.id))) {
+                    classResults.push(r);
+                  }
+                }
+              }
+            }
+          } catch (fetchErr) {
+            console.warn('Exam query warning:', fetchErr);
+          }
+
+          if (classResults.length > 0) {
             const examsByName: { [examName: string]: any[] } = {};
             classResults.forEach((rec: any) => {
               const eName = rec.exam_name || 'মূল্যায়ন পরীক্ষা';
@@ -507,49 +558,8 @@ export function StudentDashboard() {
         }
 
         if (!foundRealData) {
-          const demoExams: ExamResult[] = [
-            {
-              id: 'exam_term_2_2026',
-              studentId: activeStudentId,
-              className: activeClassName,
-              examName: '২য় সাময়িক পরীক্ষা ২০২৬',
-              year: '২০২৬',
-              isCurrent: true,
-              subjects: [
-                { subjectName: 'হিফজুল কুরআন (তিলাওয়াত ও শুনানী)', totalMarks: 100, obtainedMarks: 96 },
-                { subjectName: 'তাজবীদুল কুরআন ও সিফাত মশক', totalMarks: 100, obtainedMarks: 95 },
-                { subjectName: 'দীনিয়াত ও মাসনুন দোয়া', totalMarks: 100, obtainedMarks: 97 },
-                { subjectName: 'আখলাক ও শৃঙ্খলা মান', totalMarks: 50, obtainedMarks: 48 },
-              ],
-              totalMarks: 350,
-              obtainedMarks: 336,
-              percentage: 96,
-              grade: 'মুমতাজ (A+)',
-              position: 1,
-            },
-            {
-              id: 'exam_term_1_2026',
-              studentId: activeStudentId,
-              className: activeClassName,
-              examName: '১ম সাময়িক পরীক্ষা ২০২৬',
-              year: '২০২৬',
-              isCurrent: false,
-              subjects: [
-                { subjectName: 'হিফজুল কুরআন (তিলাওয়াত ও শুনানী)', totalMarks: 100, obtainedMarks: 92 },
-                { subjectName: 'তাজবীদুল কুরআন ও সিফাত মশক', totalMarks: 100, obtainedMarks: 91 },
-                { subjectName: 'দীনিয়াত ও মাসনুন দোয়া', totalMarks: 100, obtainedMarks: 94 },
-                { subjectName: 'আখলাক ও শৃঙ্খলা মান', totalMarks: 50, obtainedMarks: 45 },
-              ],
-              totalMarks: 350,
-              obtainedMarks: 322,
-              percentage: 92,
-              grade: 'মুমতাজ (A+)',
-              position: 2,
-            },
-          ];
-
-          setExamResultsList(demoExams);
-          setSelectedExamId(demoExams[0].id);
+          setExamResultsList([]);
+          setSelectedExamId('');
         }
       } catch (err) {
         console.error('শিক্ষার্থী তথ্য লোড ত্রুটি:', err);
@@ -571,6 +581,7 @@ export function StudentDashboard() {
       admissionNo: activeUid || 'STU-101',
       fullName: user?.name || 'শিক্ষার্থী',
       fullNameBangla: user?.name || 'শিক্ষার্থী',
+      institutionType: (user?.extraData?.institutionType as any) || currentInstitution?.type || 'madrasa',
       className: user?.extraData?.className || 'হিফজুল কুরআন',
       section: '',
       rollNo: user?.extraData?.rollNo || '০১',
@@ -582,7 +593,28 @@ export function StudentDashboard() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-  }, [student, user]);
+  }, [student, user, currentInstitution?.type]);
+
+  const isSchool = useMemo(() => {
+    if (displayStudent.institutionType === 'school') return true;
+    if (currentInstitution?.type === 'school') return true;
+    const cls = (displayStudent.className || '').toLowerCase();
+    if (
+      cls.includes('class') ||
+      cls.includes('play') ||
+      cls.includes('nursery') ||
+      cls.includes('প্লে') ||
+      cls.includes('কেজি') ||
+      cls.includes('ওয়ান') ||
+      cls.includes('টু') ||
+      cls.includes('থ্রি') ||
+      cls.includes('ফোর') ||
+      cls.includes('ফাইভ')
+    ) {
+      if (displayStudent.institutionType !== 'madrasa') return true;
+    }
+    return false;
+  }, [displayStudent.institutionType, displayStudent.className, currentInstitution?.type]);
 
   const studentFormattedName = useMemo(() => {
     const raw = displayStudent.fullNameBangla || displayStudent.fullName || 'আব্দুল্লাহ মাহমুদ';
@@ -605,7 +637,7 @@ export function StudentDashboard() {
   };
 
   return (
-    <div className="fixed inset-0 flex justify-center items-center bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-slate-900 antialiased p-0 sm:py-4 font-['Noto_Sans_Bengali',sans-serif] overflow-hidden">
+    <div className={`fixed inset-0 flex justify-center items-center ${isSchool ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950' : 'bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950'} text-slate-900 antialiased p-0 sm:py-4 font-['Noto_Sans_Bengali',sans-serif] overflow-hidden`}>
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap');
         .bengali-clean-text {
@@ -627,362 +659,37 @@ export function StudentDashboard() {
         {/* ================= স্ক্রলেবল কনটেন্ট ================= */}
         <main className="flex-1 overflow-y-auto overscroll-contain no-scrollbar p-3.5 space-y-3.5">
 
-          {/* ================= TAB ১: হোম ================= */}
+          {/* ================= TAB ১: হোম (মাদ্রাসা vs স্কুল সম্পূর্ণ আলাদা ইন্টারফেস) ================= */}
           {activeTab === 'home' && (
-            <div className="space-y-3.5 pb-2 animate-in fade-in duration-200">
-              <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#064E3B] via-[#047857] to-[#0D9488] p-4.5 text-white shadow-lg shadow-emerald-900/25">
-                <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-emerald-400/25 blur-2xl pointer-events-none" />
-                <div className="absolute -bottom-8 -left-8 h-28 w-28 rounded-full bg-teal-300/20 blur-xl pointer-events-none" />
-
-                <div className="relative z-10 flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      onClick={() => {
-                        if (displayStudent.photoUrl) {
-                          setPreviewImage({
-                            url: displayStudent.photoUrl,
-                            title: studentFormattedName,
-                            subtitle: `শ্রেণি: ${displayStudent.className} • রোল: ${displayStudent.rollNo} • UID: ${displayStudent.admissionNo}`,
-                          });
-                        }
-                      }}
-                      className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 flex items-center justify-center text-white font-black text-xl shadow-inner shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition"
-                      title="ছবি সম্পূর্ণ দেখতে ক্লিক করুন"
-                    >
-                      {displayStudent.photoUrl && !avatarImgError ? (
-                        <img
-                          src={displayStudent.photoUrl}
-                          alt={studentFormattedName}
-                          className="w-full h-full object-cover rounded-2xl"
-                          onError={() => setAvatarImgError(true)}
-                        />
-                      ) : (
-                        displayStudent.fullNameBangla?.replace(/^মুহাম্মাদ\s+/i, '').replace(/^মোহাম্মদ\s+/i, '').charAt(0) || 'আ'
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-emerald-100 font-normal">আসসালামু আলাইকুম</span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[8px] font-extrabold bg-gradient-to-r from-amber-400 to-orange-400 text-amber-950 rounded-full shadow-xs">
-                          <Sparkles className="w-2.5 h-2.5" /> তালিবুল ইলম
-                        </span>
-                      </div>
-
-                      <h2 className="text-[15px] font-bold text-white leading-normal truncate mt-0.5 tracking-wide">
-                        {studentFormattedName}
-                      </h2>
-
-                      <p className="text-[11px] text-emerald-100/95 font-medium truncate mt-0.5">
-                        <span>{displayStudent.className || 'হিফজুল কুরআন'}</span>
-                        <span className="mx-1.5 text-emerald-300/60">•</span>
-                        <span>সিরিয়াল: {displayStudent.rollNo || '০১'}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('profile')}
-                    className="h-8.5 w-8.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white flex items-center justify-center transition active:scale-95 shrink-0 shadow-2xs cursor-pointer"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="relative z-10 mt-3 pt-2.5 border-t border-white/15 flex items-center justify-between text-[11px] text-emerald-50 leading-relaxed">
-                  <span className="flex items-center gap-1.5 font-normal tracking-wide">
-                    <Calendar className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                    ১৫ রবিউস সানি, ১৪৪৮ হিজরি
-                  </span>
-                  <span className="font-bold bg-black/25 backdrop-blur-xs px-2.5 py-0.5 rounded-full text-emerald-100 border border-white/10 text-[10px]">
-                    শিক্ষাবর্ষ: ২০২৬
-                  </span>
-                </div>
-              </div>
-
-              {latestNotice && (
-                <div
-                  onClick={() => setActiveTab('notices')}
-                  className="bg-gradient-to-r from-amber-50 via-orange-50/70 to-amber-50 border border-amber-200 rounded-2xl px-3 py-2 flex items-center justify-between cursor-pointer hover:shadow-xs transition active:scale-[0.99]"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="h-6 w-6 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                      <Megaphone size={12} />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-bold text-amber-950 truncate">
-                        {latestNotice.title}
-                      </p>
-                      <p className="text-[9px] text-amber-700 truncate font-sans">
-                        {latestNotice.date} • {latestNotice.targetAudienceLabel || 'জরুরি নোটিশ'}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[9px] font-extrabold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-full shrink-0 shadow-2xs">
-                    দেখুন
-                  </span>
-                </div>
-              )}
-
-              {/* ওয়াক্ত ও সালাত ট্র্যাকার */}
-              <div
-                onClick={() => setIsPrayerModalOpen(true)}
-                className="bg-white rounded-2xl border border-emerald-100 p-2.5 flex items-center justify-between shadow-xs cursor-pointer hover:border-emerald-300 transition active:scale-[0.99]"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="h-8.5 w-8.5 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
-                    <Clock className="w-4 h-4 stroke-[2.2]" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-xs font-bold text-slate-900 leading-normal">
-                        চলমান ওয়াক্ত: {livePrayerData.currentPrayer}
-                      </p>
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
-                    </div>
-                    <p className="text-[10px] text-slate-500 font-medium leading-normal mt-0.5">
-                      পরবর্তী: {livePrayerData.nextPrayer} ({formatTimeBengali(livePrayerData.nextPrayerTime)})
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs font-bold font-sans text-emerald-950 bg-gradient-to-r from-emerald-200 to-teal-200 px-3 py-1 rounded-xl shadow-2xs border border-emerald-300/60 block">
-                    {formatCountdownBengali(livePrayerData.remainingSeconds)}
-                  </span>
-                  <span className="text-[9px] text-slate-400 font-medium block mt-0.5">বাকি সময়</span>
-                </div>
-              </div>
-
-              {/* ৩টি কালারফুল পরিসংখ্যান কার্ড */}
-              <div className="grid grid-cols-3 gap-2.5">
-                <div className="bg-gradient-to-b from-white to-emerald-50/70 rounded-2xl border border-emerald-200/80 p-3 shadow-xs flex flex-col justify-between h-24">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-emerald-800">
-                    <span>উপস্থিতি</span>
-                    <div className="h-6 w-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-2xs">
-                      <CalendarCheck className="w-3.5 h-3.5" />
-                    </div>
-                  </div>
-                  <div className="my-0.5">
-                    <span className="text-xl font-extrabold font-sans text-emerald-950">{attendanceRate}%</span>
-                  </div>
-                  <div>
-                    <div className="w-full bg-emerald-100 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full transition-all duration-500"
-                        style={{ width: `${Math.min(attendanceRate, 100)}%` }}
-                      />
-                    </div>
-                    <span className="text-[9px] font-bold text-emerald-700 mt-1 block">
-                      {attendanceRate >= 80 ? 'সন্তোষজনক' : 'মনোযোগ কাম্য'}
-                    </span>
-                  </div>
-                </div>
-
-                <div
-                  className={`rounded-2xl border p-3 shadow-xs flex flex-col justify-between h-24 ${
-                    todayAttendanceStatus === 'present'
-                      ? 'bg-gradient-to-b from-white to-teal-50/70 border-teal-200/80'
-                      : todayAttendanceStatus === 'absent'
-                      ? 'bg-gradient-to-b from-white to-rose-50/70 border-rose-200/80'
-                      : 'bg-gradient-to-b from-white to-amber-50/70 border-amber-200/80'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-800">
-                    <span>আজকের হাজিরা</span>
-                    <div className="h-6 w-6 rounded-lg bg-white border border-slate-200/60 flex items-center justify-center shadow-2xs">
-                      {todayAttendanceStatus === 'present' ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      ) : todayAttendanceStatus === 'absent' ? (
-                        <XCircle className="w-3.5 h-3.5 text-rose-500" />
-                      ) : (
-                        <Clock className="w-3.5 h-3.5 text-amber-500" />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="my-0.5">
-                    <span
-                      className={`text-xs font-black px-2 py-0.5 rounded-md inline-block ${
-                        todayAttendanceStatus === 'present'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : todayAttendanceStatus === 'absent'
-                          ? 'bg-rose-100 text-rose-800'
-                          : todayAttendanceStatus === 'leave'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {todayAttendanceStatus === 'present'
-                        ? 'উপস্থিত ✓'
-                        : todayAttendanceStatus === 'absent'
-                        ? 'অনুপস্থিত'
-                        : todayAttendanceStatus === 'leave'
-                        ? 'ছুটি'
-                        : 'নেওয়া বাকি'}
-                    </span>
-                  </div>
-
-                  <span className="text-[9px] font-medium text-slate-500">
-                    {todayAttendanceStatus === 'present' ? 'ক্লাসে উপস্থিত' : 'দৈনিক হিসাব'}
-                  </span>
-                </div>
-
-                <div
-                  onClick={() => setActiveTab('fees')}
-                  className="bg-gradient-to-b from-white to-indigo-50/70 rounded-2xl border border-indigo-200/80 p-3 shadow-xs flex flex-col justify-between h-24 cursor-pointer active:scale-95 transition"
-                >
-                  <div className="flex items-center justify-between text-[11px] font-bold text-indigo-800">
-                    <span>মাসিক ফি</span>
-                    <div className="h-6 w-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shadow-2xs">
-                      <Receipt className="w-3.5 h-3.5" />
-                    </div>
-                  </div>
-
-                  <div className="my-0.5">
-                    <span
-                      className={`text-xs font-bold px-2 py-0.5 rounded-md inline-block ${
-                        isFeePaidThisMonth ? 'text-indigo-800 bg-indigo-100' : 'text-rose-700 bg-rose-100'
-                      }`}
-                    >
-                      {isFeePaidThisMonth ? 'পরিশোধিত' : 'বকেয়া'}
-                    </span>
-                  </div>
-
-                  <div>
-                    <div className="w-full bg-indigo-100 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${
-                          isFeePaidThisMonth
-                            ? 'bg-gradient-to-r from-indigo-500 to-blue-500 w-full'
-                            : 'bg-rose-400 w-1/4'
-                        }`}
-                      />
-                    </div>
-                    <span className="text-[9px] font-medium text-slate-500 mt-1 block">
-                      ৳ {displayStudent.monthlyFee}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* কুইক অ্যাকশন মেনু (সংশোধিত ৪টি আইটেম) */}
-              <div className="space-y-2 pt-0.5">
-                <div className="flex items-center justify-between px-1">
-                  <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                    প্রয়োজনীয় মেনু ও সেবা
-                  </p>
-                  <span className="text-[10px] font-bold text-emerald-700">কুইক অ্যাকশন</span>
-                </div>
-
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { icon: CalendarDays, label: 'ক্লাস রুটিন', grad: 'from-sky-500 to-blue-600', shadow: 'shadow-sky-500/20', action: () => setIsRoutineOpen(true) },
-                    { icon: Receipt, label: 'ফি ও রসিদ', grad: 'from-emerald-500 to-teal-600', shadow: 'shadow-emerald-500/20', action: () => setActiveTab('fees') },
-                    { icon: Award, label: 'পরীক্ষার ফল', grad: 'from-amber-500 to-orange-500', shadow: 'shadow-amber-500/20', action: () => setActiveTab('results') },
-                    { icon: CreditCard, label: 'ডিজিটাল আইডি', grad: 'from-purple-500 to-indigo-600', shadow: 'shadow-purple-500/20', action: () => setActiveTab('profile') },
-                  ].map((btn, idx) => {
-                    const Icon = btn.icon;
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={btn.action}
-                        className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-white border border-slate-200/80 hover:border-emerald-300 transition-all duration-200 active:scale-95 shadow-xs hover:shadow-md group cursor-pointer"
-                      >
-                        <div
-                          className={`h-9 w-9 rounded-2xl bg-gradient-to-tr ${btn.grad} text-white flex items-center justify-center shadow-md ${btn.shadow} group-hover:scale-110 transition-transform`}
-                        >
-                          <Icon className="w-4.5 h-4.5 stroke-[2]" />
-                        </div>
-                        <span className="mt-1.5 text-[10.5px] font-bold text-slate-800 text-center leading-tight">
-                          {btn.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* আজকের ক্লাসের সময়সূচি (সম্পূর্ণ এডমিন ডাটাবেজ ডাইনামিক) */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 space-y-2.5 shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#008955] animate-pulse" />
-                    <span className="text-xs font-bold text-slate-900">আজকের ক্লাসের সময়সূচি</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsRoutineOpen(true)}
-                    className="text-[11px] text-[#008955] font-bold hover:underline cursor-pointer"
-                  >
-                    সম্পূর্ণ দেখুন
-                  </button>
-                </div>
-
-                {isTodayRoutineLoading ? (
-                  <div className="space-y-2 py-1">
-                    <div className="h-12 bg-slate-100 animate-pulse rounded-xl border border-slate-200/60 p-2.5 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-5 w-16 bg-slate-200 rounded-md" />
-                        <div className="space-y-1">
-                          <div className="h-3 w-28 bg-slate-200 rounded" />
-                          <div className="h-2 w-20 bg-slate-200 rounded" />
-                        </div>
-                      </div>
-                      <div className="h-4 w-12 bg-slate-200/80 rounded-full" />
-                    </div>
-                  </div>
-                ) : todayRoutines.length > 0 ? (
-                  <div className="space-y-2 text-xs">
-                    {todayRoutines.map((routine, idx) => (
-                      <div
-                        key={routine.id || idx}
-                        className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
-                          idx === 0
-                            ? 'bg-gradient-to-r from-emerald-50/90 to-teal-50/60 border-emerald-200/80'
-                            : 'bg-slate-50 border-slate-200/70'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                          <span
-                            className={`font-sans font-bold text-[10px] px-2 py-0.5 rounded-md shadow-2xs shrink-0 ${
-                              idx === 0
-                                ? 'bg-[#008955] text-white'
-                                : 'bg-slate-200 text-slate-700'
-                            }`}
-                          >
-                            {routine.start_time || routine.startTime} - {routine.end_time || routine.endTime}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="font-bold text-slate-900 text-xs leading-tight truncate">
-                              {routine.subject_name || routine.subjectName}
-                            </p>
-                            <p className="text-[10px] text-slate-500 mt-0.5 truncate">
-                              শিক্ষক: {routine.teacher_name || routine.teacherName || 'উস্তাদ নির্ধারণ করা হয়নি'}
-                              {routine.room_no && ` • রুম: ${routine.room_no}`}
-                            </p>
-                          </div>
-                        </div>
-
-                        {idx === 0 && (
-                          <span className="text-[9px] font-extrabold text-[#008955] bg-emerald-100/90 border border-emerald-300/60 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
-                            <Zap className="w-2.5 h-2.5 fill-[#008955]" /> প্রথম ক্লাস
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  /* যদি এডমিন আজকের দিনে কোনো রুটিন এড না করে থাকে */
-                  <div className="py-4 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                    <p className="text-xs font-bold text-slate-600">আজকে কোনো ক্লাস রুটিন যুক্ত করা নেই</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      অ্যাডমিন প্যানেল থেকে {displayStudent.className || 'সাধারণ'} শ্রেণির আজকের রুটিন যুক্ত করা হলে এখানে দেখাবে
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+            isSchool ? (
+              <SchoolStudentHome
+                student={displayStudent}
+                studentFormattedName={studentFormattedName}
+                avatarImgError={avatarImgError}
+                setAvatarImgError={setAvatarImgError}
+                setPreviewImage={setPreviewImage}
+                setActiveTab={setActiveTab}
+                setIsRoutineOpen={setIsRoutineOpen}
+                latestNotice={latestNotice}
+                attendanceRate={attendanceRate}
+                isFeePaidThisMonth={isFeePaidThisMonth}
+              />
+            ) : (
+              <MadrasaStudentHome
+                student={displayStudent}
+                studentFormattedName={studentFormattedName}
+                avatarImgError={avatarImgError}
+                setAvatarImgError={setAvatarImgError}
+                setPreviewImage={setPreviewImage}
+                setActiveTab={setActiveTab}
+                setIsRoutineOpen={setIsRoutineOpen}
+                setIsPrayerModalOpen={setIsPrayerModalOpen}
+                latestNotice={latestNotice}
+                livePrayerData={livePrayerData}
+                attendanceRate={attendanceRate}
+                isFeePaidThisMonth={isFeePaidThisMonth}
+              />
+            )
           )}
 
           {/* ================= TAB ২: ফি ও রসিদ ================= */}
@@ -1218,7 +925,7 @@ export function StudentDashboard() {
           {activeTab === 'profile' && <StudentProfile student={displayStudent} onLogout={logout} />}
         </main>
 
-        <StudentBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+        <StudentBottomNav activeTab={activeTab} setActiveTab={setActiveTab} isSchool={isSchool} />
       </div>
 
       {/* ক্লাস রুটিন ফুল পেজ স্ক্রিন (Full Page Screen View) */}
@@ -1273,8 +980,8 @@ export function StudentDashboard() {
               </div>
             </div>
 
-            {/* ক্লাস রুটিনের তালিকা */}
-            <StudentRoutine classNameProp={displayStudent.className} />
+            {/* দৈনিক সবক ও ক্লাস রুটিনের তালিকা */}
+            <StudentStudyView student={displayStudent} />
           </main>
 
         </div>

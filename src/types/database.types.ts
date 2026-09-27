@@ -87,11 +87,13 @@ export interface FeePayment {
   receiptNo: string;
   studentId: string;
   feeTypeId: string;
+  feeType?: string;
   amount: number;
   month?: string;
   paymentDate: string;
   paymentMethod: PaymentMethod;
   notes?: string;
+  note?: string;
   synced: boolean;
   createdAt: string;
 }

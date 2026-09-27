@@ -179,7 +179,34 @@ export function UidManagementPage({
       // ২. লোকাল ডেটাবেজে পুরোনো রেকর্ড ডিলিট করে নতুন আইডি দিয়ে সেভ
       if (newCustomUid !== oldOriginalUid) {
         await localDb.students.delete(oldOriginalUid);
+
+        // সংশ্লিষ্ট ফি ও হাজিরার লোকাল রেকর্ড সিঙ্ক
+        try {
+          const localFees = await localDb.feePayments.filter((p) => String(p.studentId) === oldOriginalUid).toArray();
+          for (const f of localFees) {
+            await localDb.feePayments.update(f.id, { studentId: newCustomUid });
+          }
+        } catch (e) {}
+
+        try {
+          const localAtts = await localDb.attendance.filter((a) => String(a.studentId) === oldOriginalUid).toArray();
+          for (const a of localAtts) {
+            await localDb.attendance.update(a.id, { studentId: newCustomUid });
+          }
+        } catch (e) {}
+
+        // সুপাবেসে সংশ্লিষ্ট ফি, হাজিরা ও রেজাল্টের student_id ক্যাসকেড আপডেট
+        try {
+          await supabase.from('student_fees').update({ student_id: newCustomUid }).eq('student_id', oldOriginalUid);
+        } catch (e) {}
+        try {
+          await supabase.from('attendance').update({ student_id: newCustomUid }).eq('student_id', oldOriginalUid);
+        } catch (e) {}
+        try {
+          await supabase.from('exam_results').update({ student_id: newCustomUid }).eq('student_id', oldOriginalUid);
+        } catch (e) {}
       }
+
       await localDb.students.put({
         ...student,
         id: newCustomUid,
@@ -223,24 +250,43 @@ export function UidManagementPage({
     try {
       setLoadingId(teacher.id);
 
-      await localDb.staff.update(teacher.id, {
+      // Dexie-তে প্রাইমারি কি নিরাপদ আপডেট (delete + put)
+      if (newUid !== teacher.id) {
+        await localDb.staff.delete(teacher.id);
+      }
+      await localDb.staff.put({
+        ...teacher,
         id: newUid,
         teacher_uid: newUid,
         updatedAt: new Date().toISOString(),
       });
+
+      // লোকাল শিক্ষার্থীদের assigned_teacher_uid ক্যাসকেড আপডেট
+      try {
+        const assignedLocal = await localDb.students.filter(
+          (s: any) => String(s.assigned_teacher_uid) === teacher.id || String(s.assigned_teacher_uid) === teacher.teacher_uid
+        ).toArray();
+        for (const std of assignedLocal) {
+          await localDb.students.update(std.id, { assigned_teacher_uid: newUid });
+        }
+      } catch (e) {}
 
       try {
         await supabase
           .from('staff')
           .upsert([
             {
-              id: teacher.id,
+              id: newUid,
               teacher_uid: newUid,
               full_name: teacher.fullName,
               phone: teacher.phone,
               designation: teacher.designation,
             },
           ], { onConflict: 'id' });
+
+        if (newUid !== teacher.id) {
+          await supabase.from('staff').delete().eq('id', teacher.id);
+        }
 
         await supabase
           .from('teachers')
@@ -253,6 +299,21 @@ export function UidManagementPage({
               is_linked: false,
             },
           ], { onConflict: 'id' });
+
+        if (newUid !== teacher.id) {
+          await supabase.from('teachers').delete().eq('id', teacher.id);
+        }
+
+        // সুপাবেসে এই শিক্ষকের আন্ডারে থাকা শিক্ষার্থীদের assigned_teacher_uid আপডেট
+        await supabase.from('students')
+          .update({ assigned_teacher_uid: newUid })
+          .eq('assigned_teacher_uid', teacher.id);
+
+        if (teacher.teacher_uid && teacher.teacher_uid !== teacher.id) {
+          await supabase.from('students')
+            .update({ assigned_teacher_uid: newUid })
+            .eq('assigned_teacher_uid', teacher.teacher_uid);
+        }
       } catch (e) {
         console.warn('Supabase teacher UID update warning:', e);
       }

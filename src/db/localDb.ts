@@ -17,6 +17,7 @@ export class MadrasaLocalDatabase extends Dexie {
   feePayments!: Table<FeePayment, string>;
   salaryPayments!: Table<SalaryPayment, string>;
   feeTypes!: Table<FeeType, string>;
+  sabakRecords!: Table<any, string>;
 
   constructor() {
     super('MadrasaManagementDB');
@@ -31,6 +32,9 @@ export class MadrasaLocalDatabase extends Dexie {
     });
     this.version(2).stores({
       students: 'id, admissionNo, institutionType, className, section, rollNo, status, phone',
+    });
+    this.version(3).stores({
+      sabakRecords: 'id, studentId, date, grade, synced',
     });
   }
 }

@@ -156,6 +156,16 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
     try {
       await supabase.from('class_routines').delete().eq('id', id);
       setRoutines((prev) => prev.filter((r) => r.id !== id));
+
+      const localKey = `madrasa_routine_${selectedClass}`;
+      const cached = localStorage.getItem(localKey);
+      if (cached) {
+        try {
+          const arr = JSON.parse(cached);
+          const filtered = arr.filter((r: any) => r.id !== id);
+          localStorage.setItem(localKey, JSON.stringify(filtered));
+        } catch (e) {}
+      }
     } catch {
       alert('মুছে ফেলা যায়নি');
     }

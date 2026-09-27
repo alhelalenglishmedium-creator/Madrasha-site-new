@@ -160,11 +160,11 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
                 studentId: p.studentId,
                 amount: Number(p.amount || 0),
                 month: p.month || 'চলতি মাস',
-                feeType: p.feeType || p.feeCategory || 'মাসিক বেতন',
+                feeType: p.feeType || p.feeTypeId || p.feeCategory || 'মাসিক বেতন',
                 paymentDate: p.paymentDate || new Date().toISOString().split('T')[0],
                 paymentMethod: p.paymentMethod === 'cash' ? 'নগদ ক্যাশ' : p.paymentMethod || 'নগদ ক্যাশ',
                 receiptNo: p.receiptNo || `REC-${p.id.slice(-6)}`,
-                note: p.feeTypeId || p.notes || '',
+                note: p.notes || p.note || '',
                 createdAt: p.createdAt,
               }));
           } catch (e) {
@@ -184,11 +184,25 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
     fetchFeeHistory();
   }, [student]);
 
-  // চলতি মাসের ফি পরিশোধিত কিনা যাচাই
+  // চলতি মাসের ফি পরিশোধিত কিনা নির্ভুল ও ডায়নামিক যাচাই
   const isCurrentMonthPaid = useMemo(() => {
     if (feeRecords.length === 0) return false;
-    const currentMonthNum = new Date().getMonth() + 1;
-    const currentYear = new Date().getFullYear().toString();
+    const now = new Date();
+    const currentMonthIdx = now.getMonth(); // 0-11
+    const currentMonthNum = currentMonthIdx + 1;
+    const currentYear = now.getFullYear().toString();
+
+    const BENGALI_MONTHS = [
+      'জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
+      'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'
+    ];
+    const ENGLISH_MONTHS = [
+      'january', 'february', 'march', 'april', 'may', 'june',
+      'july', 'august', 'september', 'october', 'november', 'december'
+    ];
+
+    const currentBn = BENGALI_MONTHS[currentMonthIdx];
+    const currentEn = ENGLISH_MONTHS[currentMonthIdx];
 
     return feeRecords.some((f) => {
       const mStr = String(f.month || '').toLowerCase();
@@ -197,21 +211,30 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
       return (
         pDate.startsWith(currentMonthISO) ||
         mStr.includes(currentMonthISO) ||
-        (mStr.includes(currentYear) && mStr.includes(String(currentMonthNum))) ||
-        mStr.includes('সেপ্টেম্বর')
+        mStr.includes(currentBn.toLowerCase()) ||
+        mStr.includes(currentEn) ||
+        (mStr.includes(currentYear) && mStr.includes(String(currentMonthNum)))
       );
     });
   }, [feeRecords, currentMonthISO]);
 
+  const isSchool = student?.institutionType === 'school';
+
   return (
     <div className="space-y-3.5 pb-24 font-['Noto_Sans_Bengali',sans-serif] animate-in fade-in duration-200">
-      {/* ১. নির্ধারিত মাসিক ফি কার্ড */}
-      <div className="relative rounded-3xl bg-gradient-to-tr from-[#008955] via-[#007a4c] to-[#04633e] p-5 text-white shadow-sm">
-        <div className="flex items-start justify-between">
+      {/* ১. নির্ধারিত মাসিক ফি কার্ড (স্কুল vs মাদ্রাসা) */}
+      <div className={`relative rounded-3xl p-5 text-white shadow-md overflow-hidden ${
+        isSchool
+          ? 'bg-gradient-to-tr from-[#0F172A] via-[#1E3A8A] to-[#2563EB] border border-blue-400/20'
+          : 'bg-gradient-to-tr from-[#064E3B] via-[#008955] to-[#047857] border border-emerald-400/20'
+      }`}>
+        <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-white/10 blur-xl pointer-events-none" />
+
+        <div className="relative z-10 flex items-start justify-between">
           <div>
-            <span className="text-[11px] font-bold text-emerald-200 flex items-center gap-1.5">
+            <span className={`text-[11px] font-bold flex items-center gap-1.5 ${isSchool ? 'text-cyan-200' : 'text-emerald-200'}`}>
               <Wallet size={14} />
-              <span>নির্ধারিত মাসিক ফি</span>
+              <span>{isSchool ? 'নির্ধারিত টিউশন ফি (Tuition Fees)' : 'নির্ধারিত মাসিক খোরাকি ও বেতন'}</span>
             </span>
             <p className="text-3xl font-black font-sans tracking-tight mt-1">
               ৳ {monthlyFeeAmount > 0 ? monthlyFeeAmount.toLocaleString('en-US') : '০'}
@@ -219,21 +242,27 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
           </div>
 
           {isCurrentMonthPaid ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/20 border border-emerald-300/40 px-3 py-1 text-xs font-bold text-emerald-100 shadow-2xs">
-              <CheckCircle2 size={13} className="text-emerald-300" />
-              <span>পরিশোধিত</span>
+            <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold shadow-2xs border ${
+              isSchool
+                ? 'bg-cyan-400/20 border-cyan-300/40 text-cyan-100'
+                : 'bg-emerald-400/20 border-emerald-300/40 text-emerald-100'
+            }`}>
+              <CheckCircle2 size={13} className={isSchool ? 'text-cyan-300' : 'text-emerald-300'} />
+              <span>পরিশোধিত ✓</span>
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 border border-amber-300/40 px-3 py-1 text-xs font-bold text-amber-200 shadow-2xs">
               <AlertCircle size={13} className="text-amber-300" />
-              <span>বকেয়া রয়েছে</span>
+              <span>বকেয়া চালান</span>
             </span>
           )}
         </div>
 
-        <div className="mt-3.5 pt-3 border-t border-white/15 flex items-center justify-between text-[11px] text-emerald-100">
+        <div className={`relative z-10 mt-3.5 pt-3 border-t flex items-center justify-between text-[11px] ${
+          isSchool ? 'border-white/15 text-blue-100' : 'border-white/15 text-emerald-100'
+        }`}>
           <span>চলতি মাস: {currentMonthISO}</span>
-          <span className="font-bold text-white bg-black/20 px-2 py-0.5 rounded-md font-sans">
+          <span className="font-bold text-white bg-black/25 px-2.5 py-0.5 rounded-full font-sans border border-white/10">
             আইডি: {studentDisplayId}
           </span>
         </div>
@@ -321,15 +350,22 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
           <div
             id="student-printable-receipt"
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-[360px] rounded-3xl bg-white p-5 shadow-2xl border border-emerald-300 text-slate-800"
+            className="relative w-full max-w-[370px] rounded-3xl bg-white p-5 shadow-2xl border border-slate-200 text-slate-800 overflow-hidden"
           >
+            {/* ভাউচারের দুই পাশের ছিঁড়ে নেওয়ার খাঁজ (Perforated ticket cutouts) */}
+            <div className="absolute top-[220px] -left-3.5 h-7 w-7 rounded-full bg-slate-900/60 pointer-events-none" />
+            <div className="absolute top-[220px] -right-3.5 h-7 w-7 rounded-full bg-slate-900/60 pointer-events-none" />
+
             {/* হেডার */}
-            <div className="text-center pb-3 border-b border-dashed border-emerald-200">
+            <div className={`text-center pb-3 border-b border-dashed ${isSchool ? 'border-blue-200' : 'border-emerald-200'}`}>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  অভিভাবক কপি
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  isSchool ? 'bg-blue-50 text-blue-800 border-blue-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                }`}>
+                  অভিভাবক কপি • Student Copy
                 </span>
                 <button
+                  type="button"
                   onClick={() => setSelectedReceipt(null)}
                   className="h-7 w-7 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center cursor-pointer"
                 >
@@ -337,11 +373,17 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
                 </button>
               </div>
 
-              <div className="h-10 w-10 mx-auto rounded-2xl bg-[#E7F6ED] text-[#008955] flex items-center justify-center mb-1">
+              <div className={`h-10 w-10 mx-auto rounded-2xl flex items-center justify-center mb-1 ${
+                isSchool ? 'bg-blue-50 text-blue-700' : 'bg-[#E7F6ED] text-[#008955]'
+              }`}>
                 <ShieldCheck size={24} />
               </div>
-              <h2 className="text-sm font-black text-slate-900 leading-snug text-center">মাদ্রাসায়ে ইসলামিয়া দারুল উলুম, কোম্পানিগঞ্জ।</h2>
-              <p className="text-[10px] text-[#008955] font-bold mt-0.5">মানি রসিদ ও আদায় ভাউচার</p>
+              <h2 className="text-xs sm:text-sm font-black text-slate-900 leading-snug text-center">
+                {isSchool ? 'আল হেলাল ইংলিশ মিডিয়াম ইসলামিক স্কুল' : 'মাদ্রাসায়ে ইসলামিয়া দারুল উলুম, কোম্পানিগঞ্জ।'}
+              </h2>
+              <p className={`text-[10px] font-bold mt-0.5 ${isSchool ? 'text-blue-700' : 'text-[#008955]'}`}>
+                {isSchool ? 'অফিশিয়াল ডিজিটাল টিউশন ইনভয়েস' : 'মানি রসিদ ও আদায় ভাউচার'}
+              </p>
               <p className="text-[9px] text-slate-400 font-mono mt-0.5">রসিদ নং: {selectedReceipt.receiptNo}</p>
             </div>
 
@@ -355,13 +397,15 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
                 </div>
                 <div className="flex justify-between items-center text-[11px]">
                   <span className="text-slate-500">আইডি ও শ্রেণি:</span>
-                  <span className="font-bold text-[#008955]">
+                  <span className={`font-bold ${isSchool ? 'text-blue-700' : 'text-[#008955]'}`}>
                     {studentDisplayId} • {student?.className || 'সাধারণ'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[11px] pt-1 border-t border-slate-200/70">
                   <span className="text-slate-500">ফি এর ধরণ:</span>
-                  <span className="font-bold text-emerald-800 bg-emerald-100/60 px-2 py-0.5 rounded text-[11px]">
+                  <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${
+                    isSchool ? 'text-blue-800 bg-blue-100/60' : 'text-emerald-800 bg-emerald-100/60'
+                  }`}>
                     {selectedReceipt.feeType}
                   </span>
                 </div>
@@ -379,7 +423,9 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500">পেমেন্ট মাধ্যম:</span>
-                  <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                  <span className={`font-bold px-2 py-0.5 rounded border ${
+                    isSchool ? 'text-blue-800 bg-blue-50 border-blue-100' : 'text-emerald-800 bg-emerald-50 border-emerald-100'
+                  }`}>
                     {selectedReceipt.paymentMethod}
                   </span>
                 </div>
@@ -391,13 +437,27 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
                 )}
               </div>
 
-              {/* টাকার পরিমাণ বক্স */}
-              <div className="my-2 p-3 rounded-2xl bg-[#E7F6ED] border border-emerald-200 text-center">
-                <span className="text-[10px] font-bold text-[#008955] block">পরিশোধিত টাকার পরিমাণ</span>
-                <p className="text-2xl font-black text-[#008955] font-sans mt-0.5">
+              {/* টাকার পরিমাণ বক্স ও বাস্তব রাবার সিলমোহর (Rubber Stamp Effect) */}
+              <div className={`my-2 p-3 rounded-2xl text-center relative overflow-hidden border ${
+                isSchool ? 'bg-blue-50/80 border-blue-200' : 'bg-[#E7F6ED] border-emerald-200'
+              }`}>
+                <span className={`text-[10px] font-bold block ${isSchool ? 'text-blue-700' : 'text-[#008955]'}`}>
+                  পরিশোধিত টাকার পরিমাণ
+                </span>
+                <p className={`text-2xl font-black font-sans mt-0.5 ${isSchool ? 'text-blue-800' : 'text-[#008955]'}`}>
                   ৳ {selectedReceipt.amount.toLocaleString('en-US')}
                 </p>
-                <span className="text-[9px] font-bold text-emerald-700">স্ট্যাটাস: পেইড (PAID)</span>
+
+                {/* বাস্তবসম্মত সিলমোহর (Official Rubber Stamp) */}
+                <div className="mt-1 inline-block">
+                  <span className={`inline-block border-2 font-black px-2.5 py-0.5 rounded-lg text-[10px] uppercase tracking-wider shadow-xs ${
+                    isSchool
+                      ? 'border-blue-600 text-blue-700 bg-white rotate-[-4deg]'
+                      : 'border-emerald-700 text-emerald-800 bg-white/90 border-dashed rotate-[-6deg]'
+                  }`}>
+                    ✓ {isSchool ? 'VERIFIED & PAID' : 'পরিশোধিত • PAID'}
+                  </span>
+                </div>
               </div>
             </div>
 

@@ -13,18 +13,50 @@ import type { StudentTab } from './StudentDashboard';
 interface StudentBottomNavProps {
   activeTab: StudentTab;
   setActiveTab: (tab: StudentTab) => void;
+  isSchool?: boolean;
 }
 
 export const StudentBottomNav: React.FC<StudentBottomNavProps> = ({
   activeTab,
   setActiveTab,
+  isSchool = false,
 }) => {
   const navItems = [
-    { id: 'home' as StudentTab, label: 'হোম', icon: Home, color: 'from-emerald-500 to-teal-600', activeText: 'text-emerald-700' },
-    { id: 'fees' as StudentTab, label: 'ফি ও রসিদ', icon: Receipt, color: 'from-sky-500 to-blue-600', activeText: 'text-sky-700' },
-    { id: 'results' as StudentTab, label: 'ফলাফল', icon: Award, color: 'from-amber-500 to-orange-500', activeText: 'text-amber-700' },
-    { id: 'notices' as StudentTab, label: 'বিজ্ঞপ্তি', icon: Bell, color: 'from-rose-500 to-pink-600', activeText: 'text-rose-700' },
-    { id: 'profile' as StudentTab, label: 'প্রোফাইল', icon: User, color: 'from-purple-500 to-indigo-600', activeText: 'text-purple-700' },
+    {
+      id: 'home' as StudentTab,
+      label: 'হোম',
+      icon: Home,
+      color: isSchool ? 'from-blue-600 to-indigo-700' : 'from-emerald-500 to-teal-600',
+      activeText: isSchool ? 'text-blue-700' : 'text-emerald-700',
+    },
+    {
+      id: 'fees' as StudentTab,
+      label: isSchool ? 'টিউশন ফি' : 'ফি ও রসিদ',
+      icon: Receipt,
+      color: 'from-sky-500 to-blue-600',
+      activeText: 'text-sky-700',
+    },
+    {
+      id: 'results' as StudentTab,
+      label: isSchool ? 'টার্ম রেজাল্ট' : 'ফলাফল',
+      icon: Award,
+      color: 'from-amber-500 to-orange-500',
+      activeText: 'text-amber-700',
+    },
+    {
+      id: 'notices' as StudentTab,
+      label: isSchool ? 'সার্কুলার' : 'বিজ্ঞপ্তি',
+      icon: Bell,
+      color: 'from-rose-500 to-pink-600',
+      activeText: 'text-rose-700',
+    },
+    {
+      id: 'profile' as StudentTab,
+      label: isSchool ? 'আইডি কার্ড' : 'প্রোফাইল',
+      icon: User,
+      color: 'from-purple-500 to-indigo-600',
+      activeText: 'text-purple-700',
+    },
   ];
 
   return (

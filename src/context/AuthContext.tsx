@@ -607,7 +607,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 cleanAdm === strippedId ||
                 rollStr === cleanLower ||
                 phoneStr === rawInput ||
-                (onlyDigits && (idStr.endsWith(onlyDigits) || admStr.endsWith(onlyDigits) || rollStr === onlyDigits))
+                (onlyDigits && onlyDigits.length >= 3 && (idStr.endsWith(onlyDigits) || admStr.endsWith(onlyDigits)))
               );
             });
           }
@@ -627,24 +627,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 admStr === cleanLower ||
                 rollStr === cleanLower ||
                 phoneStr === rawInput ||
-                (onlyDigits && (idStr.endsWith(onlyDigits) || admStr.endsWith(onlyDigits) || rollStr === onlyDigits))
+                (onlyDigits && onlyDigits.length >= 3 && (idStr.endsWith(onlyDigits) || admStr.endsWith(onlyDigits)))
               );
             });
           } catch (e) {}
         }
 
         if (!studentMatch) {
-          studentMatch = {
-            id: rawInput,
-            admission_no: rawInput,
-            full_name: user?.name || 'শিক্ষার্থী',
-            full_name_bangla: user?.name || 'শিক্ষার্থী',
-            class_name: 'হিফজুল কুরআন',
-            roll: '০১',
-            phone: user?.phone || '',
-            photo_url: user?.avatarUrl || '',
-            status: 'active',
-            monthly_fee: 1000,
+          return {
+            success: false,
+            message: 'এই ইউআইডি বা রোলে কোনো শিক্ষার্থী পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইউআইডি দিন।',
           };
         }
 
@@ -767,7 +759,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   cleanId === strippedId ||
                   cleanUid === strippedId ||
                   phoneStr === rawInput ||
-                  (onlyDigits && (idStr.endsWith(onlyDigits) || cleanUid.endsWith(onlyDigits)))
+                  (onlyDigits && onlyDigits.length >= 3 && (idStr.endsWith(onlyDigits) || cleanUid.endsWith(onlyDigits)))
                 );
               });
             }
@@ -786,22 +778,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 idStr === cleanLower ||
                 uidStr === cleanLower ||
                 phoneStr === rawInput ||
-                (onlyDigits && (idStr.endsWith(onlyDigits) || uidStr.endsWith(onlyDigits)))
+                (onlyDigits && onlyDigits.length >= 3 && (idStr.endsWith(onlyDigits) || uidStr.endsWith(onlyDigits)))
               );
             });
           } catch (e) {}
         }
 
         if (!teacherMatch) {
-          teacherMatch = {
-            id: rawInput,
-            teacher_uid: rawInput,
-            full_name: user?.name || 'শিক্ষক',
-            designation: 'শিক্ষক',
-            role: 'teacher',
-            phone: user?.phone || '',
-            photo_url: user?.avatarUrl || '',
-            status: 'active',
+          return {
+            success: false,
+            message: 'এই ইউআইডি বা মোবাইল নম্বরে কোনো শিক্ষক পাওয়া যায়নি। সঠিক তথ্য দিন।',
           };
         }
 
