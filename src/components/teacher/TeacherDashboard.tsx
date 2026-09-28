@@ -92,7 +92,7 @@ export function TeacherDashboard() {
     const sectionLabels: Record<HifzSectionType, string> = {
       sabak: 'নতুন সবক',
       saatSabak: 'সাত সবক',
-      alMukhta: 'আম্মুক্তা (পেছনের রিভিশন)',
+      alMukhta: 'আমুখতা (পেছনের রিভিশন)',
       sabina: 'সবিনা',
     };
 
@@ -755,7 +755,7 @@ export function TeacherDashboard() {
                     </div>
                   </button>
 
-                  {/* ৩. আম্মুক্তা বাটন */}
+                  {/* ৩. আমুখতা বাটন */}
                   <button
                     type="button"
                     onClick={() => {
@@ -770,11 +770,11 @@ export function TeacherDashboard() {
                         <Sparkles size={16} />
                       </div>
                       <span className="text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded">
-                        আম্মুক্তা
+                        আমুখতা
                       </span>
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-900 group-hover:text-amber-700 transition">৩. আম্মুক্তা এন্ট্রি</p>
+                      <p className="text-xs font-bold text-slate-900 group-hover:text-amber-700 transition">৩. আমুখতা এন্ট্রি</p>
                       <span className="text-[9.5px] text-slate-400 block mt-0.5">পেছনের মুখস্থ পারার দোহর</span>
                     </div>
                   </button>

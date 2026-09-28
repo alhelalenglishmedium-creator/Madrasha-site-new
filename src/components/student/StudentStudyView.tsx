@@ -127,35 +127,31 @@ export const StudentStudyView: React.FC<StudentStudyViewProps> = ({ student }) =
                 </div>
               )}
 
-              {/* ৩. আম্মুক্তা */}
-              {(latestSabak.alMukhta || latestSabak.satpara) && (
-                <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 flex justify-between items-center">
-                  <div>
-                    <p className="text-[11px] font-bold text-amber-950">৩. আম্মুক্তা (পেছনের রিভিশন)</p>
-                    <p className="text-[11.5px] font-semibold text-amber-900 mt-0.5">
-                      {latestSabak.alMukhta || latestSabak.satpara}
-                    </p>
-                  </div>
-                  <span className="font-bold text-[11px] text-amber-700 bg-white border border-amber-200 px-2.5 py-1 rounded-xl shadow-2xs shrink-0">
-                    আম্মুক্তা
-                  </span>
+              {/* ৩. আমুখতা */}
+              <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 flex justify-between items-center">
+                <div>
+                  <p className="text-[11px] font-bold text-amber-950">৩. আমুখতা (পেছনের রিভিশন)</p>
+                  <p className="text-[11.5px] font-semibold text-amber-900 mt-0.5">
+                    {latestSabak.alMukhta || latestSabak.satpara || 'নির্ধারিত হয়নি'}
+                  </p>
                 </div>
-              )}
+                <span className="font-bold text-[11px] text-amber-700 bg-white border border-amber-200 px-2.5 py-1 rounded-xl shadow-2xs shrink-0">
+                  আমুখতা
+                </span>
+              </div>
 
-              {/* ৪. সবিনা (সাপ্তাহিক শুনানী) */}
-              {latestSabak.sabina && (
-                <div className="p-3 rounded-2xl bg-purple-50/70 border border-purple-200 flex justify-between items-center">
-                  <div>
-                    <p className="text-[11px] font-bold text-purple-950">৪. সবিনা (সাপ্তাহিক শুনানী)</p>
-                    <p className="text-[11.5px] font-semibold text-purple-900 mt-0.5">
-                      {latestSabak.sabina}
-                    </p>
-                  </div>
-                  <span className="font-bold text-[11px] text-purple-700 bg-white border border-purple-200 px-2.5 py-1 rounded-xl shadow-2xs shrink-0">
-                    সবিনা
-                  </span>
+              {/* ৪. সবিনা (সামগ্রিক শুনানী) */}
+              <div className="p-3 rounded-2xl bg-purple-50/70 border border-purple-200 flex justify-between items-center">
+                <div>
+                  <p className="text-[11px] font-bold text-purple-950">৪. সবিনা (সামগ্রিক শুনানী)</p>
+                  <p className="text-[11.5px] font-semibold text-purple-900 mt-0.5">
+                    {latestSabak.sabina || 'নির্ধারিত হয়নি'}
+                  </p>
                 </div>
-              )}
+                <span className="font-bold text-[11px] text-purple-700 bg-white border border-purple-200 px-2.5 py-1 rounded-xl shadow-2xs shrink-0">
+                  সবিনা
+                </span>
+              </div>
 
               {/* মান ও মন্তব্য */}
               <div className="pt-1 flex items-center justify-between text-[11px] px-1 text-slate-500">

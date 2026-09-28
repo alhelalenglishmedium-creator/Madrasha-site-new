@@ -27,7 +27,7 @@ export interface SabakRecord {
   // ৪টি প্রধান স্তম্ভ
   sabak: string;          // ১. সবক (পারা ও পৃষ্ঠা)
   saatSabak: string;      // ২. সাত সবক (পারা ও পৃষ্ঠা রেঞ্জ)
-  alMukhta: string;       // ৩. আম্মুক্তা / আল-মুখতা (পারা ও পৃষ্ঠা রেঞ্জ)
+  alMukhta: string;       // ৩. আমুখতা (পারা ও পৃষ্ঠা রেঞ্জ)
   sabina: string;         // ৪. সবিনা (সাপ্তাহিক শুনানী)
   // ব্যাকওয়ার্ড কম্প্যাটিবিলিটি ফিল্ড
   newSabak: string;
@@ -123,7 +123,7 @@ export function SabakEntryModal({
   const [saatSabakPara, setSaatSabakPara] = useState('১');
   const [saatSabakPage, setSaatSabakPage] = useState('');
 
-  // ৩. আম্মুক্তা স্টেট (পেছনের রিভিশন)
+  // ৩. আমুখতা স্টেট (পেছনের রিভিশন)
   const [alMukhtaFromPara, setAlMukhtaFromPara] = useState('১');
   const [alMukhtaToPara, setAlMukhtaToPara] = useState('১');
   const [alMukhtaPage, setAlMukhtaPage] = useState('');
@@ -354,7 +354,7 @@ export function SabakEntryModal({
             }`}
           >
             <Sparkles size={14} />
-            <span>৩. আম্মুক্তা</span>
+            <span>৩. আমুখতা</span>
           </button>
 
           <button
@@ -440,7 +440,7 @@ export function SabakEntryModal({
                 <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-slate-600">
                   <p><span className="font-bold text-emerald-700">সবক:</span> {currentRecord.sabak || currentRecord.newSabak || 'নির্ধারিত হয়নি'}</p>
                   <p><span className="font-bold text-sky-700">সাত সবক:</span> {currentRecord.saatSabak || currentRecord.sabki || 'নির্ধারিত হয়নি'}</p>
-                  <p><span className="font-bold text-amber-700">আম্মুক্তা:</span> {currentRecord.alMukhta || currentRecord.satpara || 'নির্ধারিত হয়নি'}</p>
+                  <p><span className="font-bold text-amber-700">আমুখতা:</span> {currentRecord.alMukhta || currentRecord.satpara || 'নির্ধারিত হয়নি'}</p>
                   <p><span className="font-bold text-purple-700">সবিনা:</span> {currentRecord.sabina || 'শুনানী নেই'}</p>
                 </div>
               </div>
@@ -531,13 +531,13 @@ export function SabakEntryModal({
             </div>
           )}
 
-          {/* ================= ৩. শুধু আম্মুক্তা ফর্ম ================= */}
+          {/* ================= ৩. শুধু আমুখতা ফর্ম ================= */}
           {activeSection === 'alMukhta' && (
             <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200/90 space-y-3 animate-in fade-in duration-150">
               <div className="flex items-center justify-between border-b border-amber-100 pb-2">
                 <div className="flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-600" />
-                  <span className="text-xs font-bold text-amber-950">৩. আম্মুক্তা এন্ট্রি (পেছনের মুখস্থ পারার নিয়মিত দোহর)</span>
+                  <span className="text-xs font-bold text-amber-950">৩. আমুখতা এন্ট্রি (পেছনের মুখস্থ পারার নিয়মিত দোহর)</span>
                 </div>
                 <span className="text-[10px] text-amber-800 font-bold bg-white border border-amber-200 px-2 py-0.5 rounded-md shadow-2xs">
                   {formattedAlMukhta}
@@ -707,7 +707,7 @@ export function SabakEntryModal({
                   : activeSection === 'saatSabak'
                   ? 'সাত সবক সংরক্ষণ করুন'
                   : activeSection === 'alMukhta'
-                  ? 'আম্মুক্তা সংরক্ষণ করুন'
+                  ? 'আমুখতা সংরক্ষণ করুন'
                   : 'সবিনা সংরক্ষণ করুন'}
               </span>
             </button>
