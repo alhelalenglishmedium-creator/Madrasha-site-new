@@ -117,14 +117,14 @@ export default function LoginPage() {
     }
   };
 
-  // থিম ডিটেকশন (মাদ্রাসা vs স্কুল)
+  // থিম ডিটেকশন (মাদ্রাসা vs স্কুল vs মহিলা মাদ্রাসা)
   const isSchool = selectedInstitution?.type === 'school';
   const isMohila = selectedInstitution?.type === 'mohila_madrasa';
 
-  // লোডিং স্টেট
+  // লোডিং স্টেট (ফুল স্ক্রিন লাইট থিম)
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 text-white font-['Kalpurush','Hind_Siliguri',sans-serif] kalpurush-hind-text">
+      <div className="flex min-h-screen w-full items-center justify-center bg-white p-4 text-slate-800 font-['Kalpurush','Hind_Siliguri',sans-serif] kalpurush-hind-text">
         <style jsx global>{`
           @import url('https://fonts.maateen.me/kalpurush/font.css');
           @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
@@ -134,10 +134,10 @@ export default function LoginPage() {
         `}</style>
         <div className="flex flex-col items-center gap-3">
           <div className="relative flex h-14 w-14 items-center justify-center">
-            <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin" />
-            <ShieldCheck className="h-6 w-6 text-emerald-400" />
+            <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-600 animate-spin" />
+            <ShieldCheck className="h-6 w-6 text-emerald-600" />
           </div>
-          <p className="text-sm font-bold text-slate-200">নিরাপদ সেশন যাচাই করা হচ্ছে...</p>
+          <p className="text-sm font-bold text-slate-700">নিরাপদ সেশন যাচাই করা হচ্ছে...</p>
         </div>
       </div>
     );
@@ -146,7 +146,7 @@ export default function LoginPage() {
   // যদি ইউজার ইতিমধ্যে অথেনটিকেটেড থাকে এবং রিডাইরেক্ট চলমান থাকে
   if (user && user.role) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 text-white font-['Kalpurush','Hind_Siliguri',sans-serif] kalpurush-hind-text">
+      <div className="flex min-h-screen w-full items-center justify-center bg-white p-4 text-slate-800 font-['Kalpurush','Hind_Siliguri',sans-serif] kalpurush-hind-text">
         <style jsx global>{`
           @import url('https://fonts.maateen.me/kalpurush/font.css');
           @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
@@ -156,17 +156,25 @@ export default function LoginPage() {
         `}</style>
         <div className="flex flex-col items-center gap-3">
           <div className="relative flex h-14 w-14 items-center justify-center">
-            <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin" />
-            <ShieldCheck className="h-6 w-6 text-emerald-400" />
+            <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-600 animate-spin" />
+            <ShieldCheck className="h-6 w-6 text-emerald-600" />
           </div>
-          <p className="text-sm font-bold text-slate-200">ড্যাশবোর্ডে প্রবেশ করানো হচ্ছে...</p>
+          <p className="text-sm font-bold text-slate-700">ড্যাশবোর্ডে প্রবেশ করানো হচ্ছে...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center p-3.5 sm:p-6 bg-slate-950 overflow-hidden font-['Kalpurush','Hind_Siliguri',sans-serif] kalpurush-hind-text selection:bg-emerald-500 selection:text-white">
+    <div
+      className={`min-h-screen w-full flex flex-col justify-between font-['Kalpurush','Hind_Siliguri',sans-serif] kalpurush-hind-text transition-colors duration-500 ${
+        isSchool
+          ? 'bg-gradient-to-b from-blue-50/50 via-slate-50 to-white'
+          : isMohila
+          ? 'bg-gradient-to-b from-purple-50/50 via-slate-50 to-white'
+          : 'bg-gradient-to-b from-emerald-50/50 via-slate-50 to-white'
+      }`}
+    >
       <style jsx global>{`
         @import url('https://fonts.maateen.me/kalpurush/font.css');
         @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
@@ -174,48 +182,17 @@ export default function LoginPage() {
           font-family: 'Kalpurush', 'Hind Siliguri', -apple-system, BlinkMacSystemFont, sans-serif !important;
         }
       `}</style>
-      
-      {/* ================= ডায়নামিক অ্যাম্বিয়েন্ট ব্যাকগ্রাউন্ড ================= */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {/* ব্যাকগ্রাউন্ড প্যাটার্ন গ্রিড */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-70" />
 
-        {/* থিম অনুযায়ী ফ্লোটিং অ্যাম্বিয়েন্ট লাইট স্ফিয়ার */}
-        <div
-          className={`absolute -top-32 -left-32 h-96 w-96 rounded-full blur-3xl transition-all duration-700 opacity-30 ${
-            isSchool
-              ? 'bg-blue-600'
-              : isMohila
-              ? 'bg-purple-600'
-              : 'bg-emerald-600'
-          }`}
-        />
-        <div
-          className={`absolute -bottom-32 -right-32 h-96 w-96 rounded-full blur-3xl transition-all duration-700 opacity-25 ${
-            isSchool
-              ? 'bg-cyan-500'
-              : isMohila
-              ? 'bg-pink-500'
-              : 'bg-teal-500'
-          }`}
-        />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-slate-900/40 blur-2xl" />
-      </div>
-
-      {/* ================= মূল লগইন কনটেইনার ================= */}
-      <div className="relative z-10 w-full max-w-[460px] animate-in fade-in zoom-in-95 duration-300">
+      {/* ================= পুরো পেজ জুড়ে রেসপনসিভ কন্টেইনার ================= */}
+      <main className="w-full max-w-md mx-auto flex-1 flex flex-col justify-between px-4 py-6 sm:py-8 sm:px-6">
         
-        {/* প্রিমিয়াম এলিভেটেড কার্ড */}
-        <div className="relative rounded-[32px] border border-white/10 bg-white/95 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl shadow-black/40 overflow-hidden">
-          
-          {/* কার্ডের উপরের অংশের হালকা বর্ডার শাইন */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-500/80 to-transparent" />
+        <div className="space-y-5 flex-1 flex flex-col justify-center">
 
-          {/* ================= হেডার ও ব্র্যান্ডিং ================= */}
-          <div className="text-center space-y-3 pb-2">
+          {/* ================= ১. হেডার ও প্রাতিষ্ঠানিক লোগো ================= */}
+          <header className="text-center space-y-2.5 pt-2">
             
-            {/* প্রাতিষ্ঠানিক লোগো ব্যাজ */}
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-900/30 p-1.5 border border-emerald-400/40 relative group">
+            {/* প্রাতিষ্ঠানিক লোগো */}
+            <div className="mx-auto flex h-18 w-18 items-center justify-center rounded-2xl bg-white p-1.5 shadow-md shadow-emerald-900/10 border border-emerald-200/80">
               {!logoError ? (
                 <img
                   src="/logo.png"
@@ -224,31 +201,33 @@ export default function LoginPage() {
                   onError={() => setLogoError(true)}
                 />
               ) : (
-                <ShieldCheck size={34} className="stroke-[2.2]" />
+                <div className="h-full w-full rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center">
+                  <ShieldCheck size={36} className="stroke-[2.2]" />
+                </div>
               )}
             </div>
 
             {/* হেডিং ও সাব-হেডিং */}
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-slate-100 border border-slate-200/80 text-[11px] font-bold text-slate-700 mb-1.5 shadow-2xs">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-800 shadow-2xs">
                 <ShieldCheck size={12} className="text-emerald-600" />
-                <span>অফিসিয়াল স্মার্ট এডুকেশন পোর্টাল</span>
+                <span>অফিসিয়াল স্মার্ট এডুকেশন পোর্টাল</span>
               </div>
               
-              <h1 className="text-lg sm:text-xl font-black text-slate-900 leading-snug tracking-tight">
-                {selectedInstitution ? selectedInstitution.name : 'আল হেলাল এডুকেশন নেটওয়ার্ক'}
+              <h1 className="text-lg sm:text-xl font-black text-slate-900 leading-snug">
+                {selectedInstitution ? selectedInstitution.name : 'মাদ্রাসা ও স্কুল এডুকেশন ম্যানেজমেন্ট'}
               </h1>
               
-              <p className="text-xs text-emerald-800 font-bold mt-0.5">
+              <p className="text-xs text-emerald-800 font-bold">
                 {selectedInstitution
                   ? selectedInstitution.tagline
-                  : 'কওমি মাদ্রাসা, ইসলামিক স্কুল ও মহিলা মাদ্রাসা সমন্বিত ক্যাম্পাস'}
+                  : 'কওমি ও হিফজুল কুরআন এবং ইংলিশ মিডিয়াম শিক্ষা নেটওয়ার্ক'}
               </p>
             </div>
-          </div>
+          </header>
 
-          {/* ================= ৩-ধাপের ইন্টারেক্টিভ স্টেপার ================= */}
-          <div className="my-5 px-1">
+          {/* ================= ২. ৩-ধাপের ইন্টারেক্টিভ স্টেপার ================= */}
+          <div className="px-1 py-1">
             <div className="relative flex items-center justify-between">
               
               {/* ব্যাকগ্রাউন্ড কানেক্টিং লাইন */}
@@ -274,7 +253,7 @@ export default function LoginPage() {
                   {currentStep > 1 ? <CheckCircle2 size={15} /> : '১'}
                 </div>
                 <span
-                  className={`text-[10px] font-bold mt-1 ${
+                  className={`text-[10.5px] font-bold mt-1 ${
                     currentStep === 1 ? 'text-emerald-800' : 'text-slate-500'
                   }`}
                 >
@@ -290,13 +269,13 @@ export default function LoginPage() {
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : currentStep === 2
                       ? 'bg-emerald-600 text-white ring-4 ring-emerald-100 shadow-sm animate-pulse'
-                      : 'bg-slate-200 text-slate-500'
+                      : 'bg-white border-2 border-slate-300 text-slate-500'
                   }`}
                 >
                   {currentStep > 2 ? <CheckCircle2 size={15} /> : '২'}
                 </div>
                 <span
-                  className={`text-[10px] font-bold mt-1 ${
+                  className={`text-[10.5px] font-bold mt-1 ${
                     currentStep === 2 ? 'text-emerald-800' : 'text-slate-500'
                   }`}
                 >
@@ -310,13 +289,13 @@ export default function LoginPage() {
                   className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
                     currentStep === 3
                       ? 'bg-emerald-600 text-white ring-4 ring-emerald-100 shadow-sm'
-                      : 'bg-slate-200 text-slate-500'
+                      : 'bg-white border-2 border-slate-300 text-slate-500'
                   }`}
                 >
                   ৩
                 </div>
                 <span
-                  className={`text-[10px] font-bold mt-1 ${
+                  className={`text-[10.5px] font-bold mt-1 ${
                     currentStep === 3 ? 'text-emerald-800' : 'text-slate-500'
                   }`}
                 >
@@ -327,12 +306,12 @@ export default function LoginPage() {
           </div>
 
           {/* =========================================================
-              স্ক্রিন ১: প্রতিষ্ঠান নির্বাচন (ব্র্যান্ডেড কার্ডসমূহ)
+              স্ক্রিন ১: প্রতিষ্ঠান নির্বাচন (ফুল-উইডথ পরিপাটি কার্ড)
              ========================================================= */}
           {currentStep === 1 && (
-            <div className="space-y-3.5 animate-in fade-in duration-300">
+            <div className="space-y-3 pt-1 animate-in fade-in duration-200">
               
-              <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-3 text-center">
+              <div className="rounded-2xl bg-white border border-slate-200/90 p-3.5 text-center shadow-xs">
                 <p className="text-xs font-bold text-slate-800">
                   আপনার শিক্ষা প্রতিষ্ঠান নির্বাচন করুন
                 </p>
@@ -352,49 +331,47 @@ export default function LoginPage() {
                       key={inst.id}
                       type="button"
                       onClick={() => handleSelectInstitution(inst)}
-                      className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] cursor-pointer flex items-center justify-between gap-3 group relative overflow-hidden ${
+                      className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border transition-all duration-200 active:scale-[0.99] cursor-pointer flex items-center justify-between gap-3 group bg-white shadow-xs hover:shadow-md ${
                         isSelected
                           ? isSchoolType
-                            ? 'border-blue-500 bg-blue-50/70 ring-2 ring-blue-500/20 shadow-md'
+                            ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/40'
                             : isMohilaType
-                            ? 'border-purple-500 bg-purple-50/70 ring-2 ring-purple-500/20 shadow-md'
-                            : 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20 shadow-md'
-                          : 'border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs hover:bg-slate-50/50'
+                            ? 'border-purple-500 ring-2 ring-purple-500/20 bg-purple-50/40'
+                            : 'border-emerald-600 ring-2 ring-emerald-600/20 bg-emerald-50/40'
+                          : 'border-slate-200/90 hover:border-slate-300'
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         
-                        {/* আইকন ব্যাজ */}
+                        {/* আইকন */}
                         <div
                           className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs transition-transform group-hover:scale-105 ${
                             isSchoolType
-                              ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'
+                              ? 'bg-blue-600 text-white'
                               : isMohilaType
-                              ? 'bg-gradient-to-br from-purple-600 to-fuchsia-700 text-white'
-                              : 'bg-gradient-to-br from-emerald-600 to-teal-700 text-white'
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-[#008955] text-white'
                           }`}
                         >
                           {isSchoolType ? (
-                            <School size={20} />
+                            <School size={22} />
                           ) : isMohilaType ? (
-                            <Building2 size={20} />
+                            <Building2 size={22} />
                           ) : (
-                            <BookOpen size={20} />
+                            <BookOpen size={22} />
                           )}
                         </div>
 
                         {/* নাম ও ট্যাগলাইন */}
                         <div className="min-w-0 space-y-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <h2 className="text-xs sm:text-[13px] font-bold text-slate-900 leading-tight truncate">
-                              {inst.name}
-                            </h2>
-                          </div>
-                          <p className="text-[10.5px] text-slate-500 font-medium truncate">
+                          <h2 className="text-xs sm:text-[13px] font-bold text-slate-900 leading-tight truncate">
+                            {inst.name}
+                          </h2>
+                          <p className="text-[11px] text-slate-500 font-medium truncate">
                             {inst.tagline}
                           </p>
                           <span
-                            className={`inline-block text-[9px] font-extrabold px-1.5 py-0.2 rounded-md ${
+                            className={`inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-md ${
                               isSchoolType
                                 ? 'bg-blue-100 text-blue-800'
                                 : isMohilaType
@@ -407,15 +384,15 @@ export default function LoginPage() {
                         </div>
                       </div>
 
-                      {/* নেভিগেশন তীর */}
+                      {/* নেভিগেশন বোতাম */}
                       <div
-                        className={`h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:translate-x-0.5 ${
+                        className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:translate-x-0.5 ${
                           isSelected
                             ? isSchoolType
                               ? 'bg-blue-600 text-white'
                               : isMohilaType
                               ? 'bg-purple-600 text-white'
-                              : 'bg-emerald-600 text-white'
+                              : 'bg-[#008955] text-white'
                             : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-700'
                         }`}
                       >
@@ -432,16 +409,16 @@ export default function LoginPage() {
               স্ক্রিন ২: জিমেইল সাইন-ইন
              ========================================================= */}
           {currentStep === 2 && !user && (
-            <div className="space-y-4 pt-1 animate-in fade-in duration-300">
+            <div className="space-y-4 pt-1 animate-in fade-in duration-200">
               
               {/* ব্যাক বাটন ও বর্তমান প্রতিষ্ঠান সামারি */}
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(1)}
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 transition cursor-pointer"
                 >
-                  <ArrowLeft size={14} className="stroke-[2.5]" />
+                  <ArrowLeft size={15} className="stroke-[2.5]" />
                   <span>প্রতিষ্ঠান পরিবর্তন</span>
                 </button>
 
@@ -452,41 +429,41 @@ export default function LoginPage() {
 
               {/* নির্বাচিত প্রতিষ্ঠানের হাইলাইট কার্ড */}
               <div
-                className={`rounded-2xl p-4 border text-center space-y-1.5 shadow-2xs ${
+                className={`rounded-2xl p-4 border text-center space-y-1.5 bg-white shadow-xs ${
                   isSchool
-                    ? 'bg-blue-50/60 border-blue-200'
+                    ? 'border-blue-200'
                     : isMohila
-                    ? 'bg-purple-50/60 border-purple-200'
-                    : 'bg-emerald-50/60 border-emerald-200'
+                    ? 'border-purple-200'
+                    : 'border-emerald-200'
                 }`}
               >
                 <div
-                  className={`mx-auto h-11 w-11 flex items-center justify-center rounded-2xl text-white shadow-xs ${
+                  className={`mx-auto h-12 w-12 flex items-center justify-center rounded-2xl text-white shadow-xs ${
                     isSchool
                       ? 'bg-blue-600'
                       : isMohila
                       ? 'bg-purple-600'
-                      : 'bg-emerald-600'
+                      : 'bg-[#008955]'
                   }`}
                 >
-                  {isSchool ? <School size={22} /> : <BookOpen size={22} />}
+                  {isSchool ? <School size={24} /> : <BookOpen size={24} />}
                 </div>
 
                 <div>
-                  <h2 className="text-xs font-bold text-slate-900">
+                  <h2 className="text-xs sm:text-sm font-bold text-slate-900">
                     {selectedInstitution?.name}
                   </h2>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    আপনার প্রাতিষ্ঠানিক ডেটা অ্যাক্সেস করতে জিমেইল নির্বাচন করুন
+                    আপনার প্রাতিষ্ঠানিক একাউন্টে প্রবেশ করতে জিমেইল নির্বাচন করুন
                   </p>
                 </div>
               </div>
 
-              {/* গুগল অথেনটিকেশন বাটন (অফিসিয়াল ডিজাইন) */}
+              {/* গুগল অথেনটিকেশন বাটন */}
               <button
                 type="button"
                 onClick={loginWithGoogle}
-                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-300/80 bg-white py-3.5 px-4 text-sm font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-400 hover:shadow active:scale-[0.98] cursor-pointer"
+                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-300 bg-white py-3.5 px-4 text-sm font-bold text-slate-700 shadow-xs transition-all hover:bg-slate-50 hover:border-slate-400 active:scale-[0.98] cursor-pointer"
               >
                 <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
                   <path
@@ -510,31 +487,31 @@ export default function LoginPage() {
               </button>
 
               {/* সিকিউরিটি ট্রাস্ট ব্যাজ */}
-              <div className="flex items-center justify-center gap-1.5 pt-2 text-[10.5px] text-slate-500 font-medium">
-                <Lock size={12} className="text-emerald-600" />
+              <div className="flex items-center justify-center gap-1.5 pt-2 text-[11px] text-slate-500 font-medium">
+                <Lock size={13} className="text-emerald-600" />
                 <span>256-bit SSL সুরক্ষিত • Supabase Cloud Authentication</span>
               </div>
             </div>
           )}
 
           {/* =========================================================
-              স্ক্রিন ৩: ভূমিকা ও ইউআইডি যাচাইকরণ (Role & UID Verification)
+              স্ক্রিন ৩: ভূমিকা ও ইউআইডি যাচাইকরণ
              ========================================================= */}
           {user && !user.role && (
-            <div className="space-y-4 pt-1 animate-in fade-in duration-300">
+            <div className="space-y-4 pt-1 animate-in fade-in duration-200">
               
               {/* ইউজার ওয়েলকাম ব্যানার */}
-              <div className="rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-3.5 border border-emerald-200/80 text-center space-y-1 shadow-2xs">
+              <div className="rounded-2xl bg-white p-3.5 border border-emerald-200 text-center space-y-1 shadow-xs">
                 <div className="flex items-center justify-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
-                  <p className="text-xs font-bold text-emerald-950">
+                  <p className="text-xs font-bold text-slate-900">
                     স্বাগতম, {user.name}!
                   </p>
                 </div>
                 <p className="text-[11px] font-bold text-emerald-800">
                   {selectedInstitution?.name || 'শিক্ষা প্রতিষ্ঠান'}
                 </p>
-                <p className="text-[10px] text-slate-600 font-medium">
+                <p className="text-[10.5px] text-slate-500 font-medium">
                   ড্যাশবোর্ডে প্রবেশ করতে আপনার পরিচয় ও ইউআইডি নিশ্চিত করুন
                 </p>
               </div>
@@ -559,24 +536,24 @@ export default function LoginPage() {
                         setSelectedRole('student');
                         setErrorMessage('');
                       }}
-                      className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3 transition-all duration-200 active:scale-95 cursor-pointer ${
+                      className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3 transition-all duration-200 active:scale-95 cursor-pointer bg-white shadow-2xs ${
                         selectedRole === 'student'
-                          ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20 text-emerald-900 shadow-xs'
-                          : 'border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-white hover:border-slate-300'
+                          ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/20 text-emerald-900'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                     >
                       <div
                         className={`h-9 w-9 rounded-xl flex items-center justify-center ${
                           selectedRole === 'student'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-slate-200 text-slate-600'
+                            ? 'bg-[#008955] text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600'
                         }`}
                       >
                         <GraduationCap size={18} />
                       </div>
                       <div className="text-center">
                         <span className="block text-xs font-bold">শিক্ষার্থী</span>
-                        <span className="block text-[9px] text-slate-400 font-medium">Student Portal</span>
+                        <span className="block text-[9.5px] text-slate-400 font-medium">Student Portal</span>
                       </div>
                     </button>
 
@@ -587,24 +564,24 @@ export default function LoginPage() {
                         setSelectedRole('teacher');
                         setErrorMessage('');
                       }}
-                      className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3 transition-all duration-200 active:scale-95 cursor-pointer ${
+                      className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3 transition-all duration-200 active:scale-95 cursor-pointer bg-white shadow-2xs ${
                         selectedRole === 'teacher'
-                          ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20 text-emerald-900 shadow-xs'
-                          : 'border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-white hover:border-slate-300'
+                          ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/20 text-emerald-900'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                     >
                       <div
                         className={`h-9 w-9 rounded-xl flex items-center justify-center ${
                           selectedRole === 'teacher'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-slate-200 text-slate-600'
+                            ? 'bg-[#008955] text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600'
                         }`}
                       >
                         <Users size={18} />
                       </div>
                       <div className="text-center">
                         <span className="block text-xs font-bold">শিক্ষক / উস্তাদ</span>
-                        <span className="block text-[9px] text-slate-400 font-medium">Teacher Portal</span>
+                        <span className="block text-[9.5px] text-slate-400 font-medium">Teacher Portal</span>
                       </div>
                     </button>
                   </div>
@@ -641,14 +618,14 @@ export default function LoginPage() {
                             : 'যেমন: MAD-101, 101 বা আপনার কওমি রোল'
                           : 'যেমন: TEA-101 বা আপনার শিক্ষক ইউআইডি'
                       }
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-3 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:bg-white focus:outline-none transition shadow-2xs font-sans placeholder:text-slate-400"
+                      className="w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none transition shadow-2xs font-sans placeholder:text-slate-400"
                       autoFocus
                       required
                     />
                   </div>
 
                   {/* ফরম্যাট সহায়িকা হিন্ট */}
-                  <div className="flex items-center gap-1.5 pt-1 text-[10px] text-slate-500">
+                  <div className="flex items-center gap-1.5 pt-1 text-[10.5px] text-slate-500">
                     <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
                     <span>
                       অ্যাডমিন প্যানেল বা রেজিস্ট্রেশন ফর্মে থাকা নির্ধারিত আইডি প্রদান করুন।
@@ -667,7 +644,7 @@ export default function LoginPage() {
                       value={teacherName}
                       onChange={(e) => setTeacherName(e.target.value)}
                       placeholder="যেমন: মাওলানা মোঃ আব্দুল্লাহ"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-900 focus:border-emerald-600 focus:bg-white focus:outline-none transition shadow-2xs"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none transition shadow-2xs"
                     />
                   </div>
                 )}
@@ -693,7 +670,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-700 hover:to-teal-800 py-3.5 text-sm font-bold text-white transition-all duration-200 active:scale-[0.98] shadow-md shadow-emerald-700/20 disabled:opacity-70 cursor-pointer"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#008955] hover:bg-[#007347] py-3.5 text-sm font-bold text-white transition-all duration-200 active:scale-[0.98] shadow-md shadow-emerald-700/20 disabled:opacity-70 cursor-pointer"
                 >
                   {isSubmitting ? (
                     <>
@@ -723,14 +700,17 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* ================= ফুটার ও হেল্পলাইন অ্যাকশন ================= */}
-          <div className="mt-6 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+        </div>
+
+        {/* ================= ফুটার ও হেল্পলাইন অ্যাকশন ================= */}
+        <footer className="mt-8 pt-4 border-t border-slate-200/80 space-y-2">
+          <div className="flex items-center justify-between text-[11px] text-slate-500">
             <button
               type="button"
               onClick={() => setIsHelpModalOpen(true)}
               className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:underline cursor-pointer"
             >
-              <HelpCircle size={13} />
+              <HelpCircle size={14} />
               <span>লগইন সহায়তা ও হেল্পলাইন</span>
             </button>
 
@@ -738,13 +718,12 @@ export default function LoginPage() {
               v2.0 • ২০২৬
             </span>
           </div>
-        </div>
 
-        {/* নিচের সিকিউর কপিরাইট নোট */}
-        <p className="text-center text-[10.5px] font-medium text-slate-400 mt-4 leading-relaxed">
-          © ২০২৬ আল হেলাল এডুকেশন নেটওয়ার্ক। সর্বস্বত্ব সংরক্ষিত।
-        </p>
-      </div>
+          <p className="text-center text-[10.5px] font-medium text-slate-400 leading-relaxed">
+            © ২০২৬ আল হেলাল এডুকেশন নেটওয়ার্ক। সর্বস্বত্ব সংরক্ষিত।
+          </p>
+        </footer>
+      </main>
 
       {/* ================= হেল্প ও সাপোর্ট মোডাল ================= */}
       {isHelpModalOpen && (
