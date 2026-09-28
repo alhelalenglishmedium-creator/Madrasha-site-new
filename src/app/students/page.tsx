@@ -192,6 +192,7 @@ export default function StudentsDirectoryPage() {
         }));
 
         if (formattedStudents.length > 0) {
+          await localDb.students.clear();
           await localDb.students.bulkPut(formattedStudents);
         }
         setStudents(formattedStudents);
@@ -1173,7 +1174,14 @@ export default function StudentsDirectoryPage() {
                   updated_at: new Date().toISOString(),
                 };
 
-                await supabase.from('students').upsert([insertPayload], { onConflict: 'id' });
+                const { error: upsertErr } = await supabase
+                  .from('students')
+                  .upsert([insertPayload], { onConflict: 'id' });
+
+                if (upsertErr) {
+                  console.error('Supabase student save failed:', upsertErr);
+                  alert(`সুপাবেসে সংরক্ষণ ব্যর্থ হয়েছে: ${upsertErr.message}`);
+                }
               } catch (e) {
                 console.error('Background save error:', e);
               }
