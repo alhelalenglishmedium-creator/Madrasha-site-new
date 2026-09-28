@@ -30,7 +30,7 @@ import { TeacherBottomNav, type TeacherTab } from './TeacherBottomNav';
 import { TeacherAttendanceSheet } from './TeacherAttendanceSheet';
 import { TeacherHadiyaTab, type SalaryRecord } from './TeacherHadiyaTab';
 import { TeacherProfile } from './TeacherProfile';
-import { SabakEntryModal, type SabakRecord } from './SabakEntryModal';
+import { SabakEntryModal, type SabakRecord, isHifzStudent } from './SabakEntryModal';
 import { DashboardHeader } from '@/components/common/DashboardHeader';
 import type { Notice } from '@/components/admin/NoticeModal';
 import { PrayerScheduleModal } from '../student/PrayerScheduleModal';
@@ -84,13 +84,17 @@ export function TeacherDashboard() {
 
     try {
       if (localDb.sabakRecords) {
-        await localDb.sabakRecords.add({
+        await localDb.sabakRecords.put({
           id: sabakId,
           studentId: record.studentId,
           date: record.date,
-          newSabak: record.newSabak,
-          sabki: record.sabki,
-          satpara: record.satpara,
+          sabak: record.sabak || record.newSabak,
+          saatSabak: record.saatSabak || record.sabki,
+          alMukhta: record.alMukhta || record.satpara,
+          sabina: record.sabina || '',
+          newSabak: record.sabak || record.newSabak,
+          sabki: record.saatSabak || record.sabki,
+          satpara: record.alMukhta || record.satpara,
           grade: record.grade,
           remark: record.remark || '',
           synced: true,
@@ -105,9 +109,10 @@ export function TeacherDashboard() {
       await supabase.from('sabak_records').insert([{
         student_id: record.studentId,
         date: record.date,
-        new_sabak: record.newSabak,
-        sabki: record.sabki,
-        satpara: record.satpara,
+        new_sabak: record.sabak || record.newSabak,
+        sabki: record.saatSabak || record.sabki,
+        satpara: record.alMukhta || record.satpara,
+        sabina: record.sabina || null,
         grade: record.grade,
         remark: record.remark || null,
         created_at: nowIso,
@@ -116,7 +121,7 @@ export function TeacherDashboard() {
       console.warn('Supabase sabak insert warning:', e);
     }
 
-    setSabakSuccessToast('সবক সফলভাবে সংরক্ষিত হয়েছে!');
+    setSabakSuccessToast('হিফজ সবক সফলভাবে সংরক্ষিত হয়েছে!');
     setTimeout(() => setSabakSuccessToast(''), 3000);
   };
 
@@ -728,11 +733,16 @@ export function TeacherDashboard() {
                       <BookOpen size={18} />
                     </div>
                     <div className="text-left">
-                      <p className="leading-tight font-bold text-slate-900">
-                        দৈনিক সবক ও রিভিশন এন্ট্রি
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="leading-tight font-bold text-slate-900">
+                          দৈনিক সবক ও রিভিশন এন্ট্রি
+                        </p>
+                        <span className="text-[9px] bg-emerald-100 text-[#008955] px-1.5 py-0.5 rounded font-bold">
+                          হিফজ বিভাগ খাস
+                        </span>
+                      </div>
                       <span className="text-[10px] text-slate-500 block mt-0.5">
-                        আজকের নতুন পাঠ, সবকি ও সাতপারা রেকর্ড করুন
+                        সবক, সাত সবক, আল-মুখতা ও সবিনা রেকর্ড করুন
                       </span>
                     </div>
                   </div>
@@ -787,6 +797,20 @@ export function TeacherDashboard() {
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {isHifzStudent(std) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedSabakStudent(std);
+                                setIsSabakModalOpen(true);
+                              }}
+                              className="h-8 px-2.5 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-600 hover:text-white border border-amber-200 flex items-center gap-1 text-[11px] font-bold transition active:scale-95 shadow-2xs"
+                              title="সবক ও রিভিশন এন্ট্রি দিন"
+                            >
+                              <BookOpen size={11} />
+                              <span>সবক</span>
+                            </button>
+                          )}
                           {std.phone ? (
                             <a
                               href={`tel:${std.phone}`}

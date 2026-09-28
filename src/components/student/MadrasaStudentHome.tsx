@@ -22,6 +22,7 @@ import { formatCountdownBengali, type CalculatedPrayerData } from '@/lib/prayerC
 import type { Notice } from '@/components/admin/NoticeModal';
 import { supabase } from '@/lib/supabaseClient';
 import { localDb } from '@/db/localDb';
+import { isHifzStudent } from '../teacher/SabakEntryModal';
 
 interface MadrasaStudentHomeProps {
   student: Student;
@@ -52,8 +53,15 @@ export function MadrasaStudentHome({
   attendanceRate,
   isFeePaidThisMonth,
 }: MadrasaStudentHomeProps) {
-  // সবক রেকর্ড স্টেট
+  // শুধুমাত্র হিফজুল কুরআন শিক্ষার্থী কিনা
+  const isHifz = isHifzStudent(student);
+
+  // সবক রেকর্ড স্টেট (৪টি স্তম্ভ: সবক, সাত সবক, আল-মুখতা, সবিনা)
   const [latestSabak, setLatestSabak] = useState<{
+    sabak: string;
+    saatSabak: string;
+    alMukhta: string;
+    sabina: string;
     newSabak: string;
     sabki: string;
     satpara: string;
@@ -66,6 +74,11 @@ export function MadrasaStudentHome({
   const [showParaGrid, setShowParaGrid] = useState<boolean>(false);
 
   useEffect(() => {
+    if (!isHifz) {
+      setLatestSabak(null);
+      return;
+    }
+
     const fetchSabak = async () => {
       try {
         const candidateIds = Array.from(
@@ -90,9 +103,13 @@ export function MadrasaStudentHome({
         if (!error && data && data.length > 0) {
           const r = data[0];
           setLatestSabak({
-            newSabak: r.new_sabak || r.newSabak || 'পারা ১৬ • পৃষ্ঠা ৩০৫',
-            sabki: r.sabki || 'পারা ১৫ সম্পূর্ণ',
-            satpara: r.satpara || 'পারা ১ থেকে ৩',
+            sabak: r.sabak || r.new_sabak || r.newSabak || 'পারা ১৬ • পৃষ্ঠা ৩০৫',
+            saatSabak: r.saat_sabak || r.saatSabak || r.sabki || 'পারা ১৫ সম্পূর্ণ',
+            alMukhta: r.al_mukhta || r.alMukhta || r.satpara || 'পারা ১ থেকে ৩',
+            sabina: r.sabina || '',
+            newSabak: r.sabak || r.new_sabak || r.newSabak || 'পারা ১৬ • পৃষ্ঠা ৩০৫',
+            sabki: r.saat_sabak || r.saatSabak || r.sabki || 'পারা ১৫ সম্পূর্ণ',
+            satpara: r.al_mukhta || r.alMukhta || r.satpara || 'পারা ১ থেকে ৩',
             grade: r.grade || 'মুমতায',
             date: r.date,
           });
@@ -109,9 +126,13 @@ export function MadrasaStudentHome({
           if (matched.length > 0) {
             const r = matched[0];
             setLatestSabak({
-              newSabak: r.newSabak || 'পারা ১৬ • পৃষ্ঠা ৩০৫',
-              sabki: r.sabki || 'পারা ১৫ সম্পূর্ণ',
-              satpara: r.satpara || 'পারা ১ থেকে ৩',
+              sabak: r.sabak || r.newSabak || 'পারা ১৬ • পৃষ্ঠা ৩০৫',
+              saatSabak: r.saatSabak || r.sabki || 'পারা ১৫ সম্পূর্ণ',
+              alMukhta: r.alMukhta || r.satpara || 'পারা ১ থেকে ৩',
+              sabina: r.sabina || '',
+              newSabak: r.sabak || r.newSabak || 'পারা ১৬ • পৃষ্ঠা ৩০৫',
+              sabki: r.saatSabak || r.sabki || 'পারা ১৫ সম্পূর্ণ',
+              satpara: r.alMukhta || r.satpara || 'পারা ১ থেকে ৩',
               grade: r.grade || 'মুমতায',
               date: r.date,
             });
@@ -119,11 +140,15 @@ export function MadrasaStudentHome({
           }
         }
 
-        // ফলব্যাক ডিফল্ট মাদ্রাসা সবক
+        // ফলব্যাক ডিফল্ট মাদ্রাসা সবক (শুধুমাত্র হিফজ শিক্ষার্থীর ডেমোর জন্য)
         setLatestSabak({
-          newSabak: 'পারা ১৬ • পৃষ্ঠা ৩০৫ (সূরা মারইয়াম)',
-          sabki: 'পারা ১৫ সম্পূর্ণ অংশ শুনানী',
-          satpara: 'পারা ১ থেকে পারা ৩ পর্যন্ত দোহর',
+          sabak: 'পারা ১৬ • পৃষ্ঠা ৩০৫',
+          saatSabak: 'পারা ১৫ • পৃষ্ঠা ২৯০ - ৩০৪',
+          alMukhta: 'পারা ১ থেকে পারা ৩ পর্যন্ত • পৃষ্ঠা ১ - ৬০',
+          sabina: 'পারা ১ থেকে পারা ৫ সম্পূর্ণ শুনানী',
+          newSabak: 'পারা ১৬ • পৃষ্ঠা ৩০৫',
+          sabki: 'পারা ১৫ • পৃষ্ঠা ২৯০ - ৩০৪',
+          satpara: 'পারা ১ থেকে পারা ৩ পর্যন্ত',
           grade: 'মুমতায (উত্তম)',
           date: new Date().toISOString().split('T')[0],
         });
@@ -131,7 +156,7 @@ export function MadrasaStudentHome({
     };
 
     fetchSabak();
-  }, [student]);
+  }, [student, isHifz]);
 
   // ৩০ পারার তালিকা
   const totalParas = Array.from({ length: 30 }, (_, i) => i + 1);
@@ -263,128 +288,153 @@ export function MadrasaStudentHome({
         </span>
       </div>
 
-      {/* ================= ৪. দৈনিক সবক ও পড়া ট্র্যাকার কার্ড ================= */}
-      <div className="bg-white rounded-2xl border border-emerald-100/90 p-3.5 shadow-xs space-y-2.5">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-emerald-50 text-[#008955] flex items-center justify-center">
-              <BookmarkCheck size={16} />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-slate-900 block leading-tight">
-                আজকের নির্ধারিত সবক ও পড়া
-              </span>
-              <span className="text-[9.5px] text-slate-400">হিফজ ও কিতাব বিভাগ</span>
-            </div>
-          </div>
-          <span className="text-[9.5px] font-extrabold bg-[#C89B3C]/15 text-[#C89B3C] border border-[#C89B3C]/30 px-2 py-0.5 rounded-md">
-            {latestSabak?.grade || 'মুমতায'}
-          </span>
-        </div>
-
-        <div className="space-y-2 text-xs">
-          {/* নতুন সবক */}
-          <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100 flex items-center justify-between">
-            <div>
-              <p className="text-[10.5px] font-bold text-emerald-950">১. নতুন সবক (আজকের পাঠ)</p>
-              <p className="text-[11px] font-medium text-emerald-800 mt-0.5">
-                {latestSabak?.newSabak || 'পারা ১৬ • পৃষ্ঠা ৩০৫'}
-              </p>
-            </div>
-            <span className="text-[9.5px] font-bold text-[#008955] bg-white border border-emerald-200 px-2 py-0.5 rounded-lg shadow-2xs">
-              নতুন পাঠ
-            </span>
-          </div>
-
-          {/* সবকি */}
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-            <div>
-              <p className="text-[10.5px] font-bold text-slate-800">২. সাত সবকি (নিকটবর্তী রিভিশন)</p>
-              <p className="text-[11px] text-slate-600 mt-0.5">
-                {latestSabak?.sabki || 'পারা ১৫ সম্পূর্ণ অংশ শুনানী'}
-              </p>
-            </div>
-            <span className="text-[9.5px] font-bold text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded-lg">
-              রিভিশন
-            </span>
-          </div>
-
-          {/* সাতপারা */}
-          <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-100 flex items-center justify-between">
-            <div>
-              <p className="text-[10.5px] font-bold text-amber-950">৩. সাতপারা / আমপারা দোহর</p>
-              <p className="text-[11px] text-amber-800 mt-0.5">
-                {latestSabak?.satpara || 'পারা ১ থেকে পারা ৩ পর্যন্ত দোহর'}
-              </p>
-            </div>
-            <span className="text-[9.5px] font-bold text-amber-700 bg-white border border-amber-200 px-2 py-0.5 rounded-lg">
-              দোহর
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ================= ৫. ৩০ পারা হিফজ অগ্রগতি মানচিত্র (30-Para Quran Map) ================= */}
-      <div className="bg-gradient-to-br from-white to-[#F7FBF9] rounded-2xl border border-emerald-100 p-3.5 shadow-xs space-y-2.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-emerald-100/80 text-emerald-800 flex items-center justify-center">
-              <BookOpen size={16} />
-            </div>
-            <div>
-              <h3 className="text-xs font-bold text-slate-900 leading-tight">
-                ৩০ পারা হিফজ অগ্রগতি মানচিত্র
-              </h3>
-              <p className="text-[9.5px] text-slate-500">
-                সম্পন্ন: {completedParasCount} পারা • বাকি: {30 - completedParasCount} পারা ({Math.round((completedParasCount / 30) * 100)}%)
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowParaGrid(!showParaGrid)}
-            className="text-[10px] font-bold text-[#008955] hover:underline cursor-pointer"
-          >
-            {showParaGrid ? 'সংক্ষিপ্ত' : 'সম্পূর্ণ ৩০ পারা'}
-          </button>
-        </div>
-
-        {/* প্রগ্রেস বার */}
-        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-[#008955] via-teal-500 to-[#C89B3C] transition-all duration-500"
-            style={{ width: `${(completedParasCount / 30) * 100}%` }}
-          />
-        </div>
-
-        {/* ৩০ পারা ভিজ্যুয়াল গ্রিড */}
-        {showParaGrid && (
-          <div className="grid grid-cols-6 gap-1.5 pt-1.5 animate-in fade-in duration-200">
-            {totalParas.map((paraNum) => {
-              const isCompleted = paraNum <= completedParasCount;
-              const isCurrent = paraNum === completedParasCount + 1;
-
-              return (
-                <div
-                  key={paraNum}
-                  className={`p-1.5 rounded-xl text-center border text-[10px] font-sans font-bold transition ${
-                    isCompleted
-                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs'
-                      : isCurrent
-                      ? 'bg-amber-100 text-amber-900 border-amber-300 ring-2 ring-amber-400/50 animate-pulse'
-                      : 'bg-slate-50 text-slate-400 border-slate-200/80'
-                  }`}
-                  title={`পারা ${paraNum}: ${isCompleted ? 'সম্পন্ন' : isCurrent ? 'চলতি সবক' : 'বাকি আছে'}`}
-                >
-                  <span className="block text-[8px] opacity-75">পারা</span>
-                  <span className="text-[11px] leading-none">{paraNum}</span>
+      {/* ================= ৪ ও ৫. হিফজ বিভাগ খাস: দৈনিক সবক ও ৩০ পারা ট্র্যাকার ================= */}
+      {isHifz && (
+        <div className="space-y-3.5">
+          {/* দৈনিক সবক ও রিভিশন ট্র্যাকার কার্ড */}
+          <div className="bg-white rounded-2xl border border-emerald-100/90 p-3.5 shadow-xs space-y-2.5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-emerald-50 text-[#008955] flex items-center justify-center">
+                  <BookmarkCheck size={16} />
                 </div>
-              );
-            })}
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-900 leading-tight">
+                      দৈনিক সবক ও রিভিশন
+                    </span>
+                    <span className="text-[9px] bg-emerald-100 text-[#008955] font-bold px-1.5 py-0.5 rounded">
+                      হিফজ বিভাগ খাস
+                    </span>
+                  </div>
+                  <span className="text-[9.5px] text-slate-400">হিফজুল কুরআন শিক্ষাক্রম</span>
+                </div>
+              </div>
+              <span className="text-[9.5px] font-extrabold bg-[#C89B3C]/15 text-[#C89B3C] border border-[#C89B3C]/30 px-2 py-0.5 rounded-md">
+                {latestSabak?.grade || 'মুমতায'}
+              </span>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              {/* ১. সবক */}
+              <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between">
+                <div>
+                  <p className="text-[10.5px] font-bold text-emerald-950">১. সবক (আজকের নতুন পাঠ)</p>
+                  <p className="text-[11px] font-bold text-emerald-800 mt-0.5">
+                    {latestSabak?.sabak || latestSabak?.newSabak || 'নির্ধারিত হয়নি'}
+                  </p>
+                </div>
+                <span className="text-[9.5px] font-bold text-[#008955] bg-white border border-emerald-200 px-2 py-0.5 rounded-lg shadow-2xs shrink-0">
+                  নতুন পাঠ
+                </span>
+              </div>
+
+              {/* ২. সাত সবক */}
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+                <div>
+                  <p className="text-[10.5px] font-bold text-slate-800">২. সাত সবক (চলতি রিভিশন)</p>
+                  <p className="text-[11px] font-semibold text-slate-700 mt-0.5">
+                    {latestSabak?.saatSabak || latestSabak?.sabki || 'নির্ধারিত হয়নি'}
+                  </p>
+                </div>
+                <span className="text-[9.5px] font-bold text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded-lg shrink-0">
+                  চলতি রিভিশন
+                </span>
+              </div>
+
+              {/* ৩. আল-মুখতা */}
+              <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between">
+                <div>
+                  <p className="text-[10.5px] font-bold text-amber-950">৩. আল-মুখতা (পেছনের রিভিশন)</p>
+                  <p className="text-[11px] font-semibold text-amber-900 mt-0.5">
+                    {latestSabak?.alMukhta || latestSabak?.satpara || 'নির্ধারিত হয়নি'}
+                  </p>
+                </div>
+                <span className="text-[9.5px] font-bold text-amber-700 bg-white border border-amber-200 px-2 py-0.5 rounded-lg shrink-0">
+                  পেছনের রিভিশন
+                </span>
+              </div>
+
+              {/* ৪. সবিনা (সাপ্তাহিক শুনানী) */}
+              {latestSabak?.sabina ? (
+                <div className="p-2.5 rounded-xl bg-purple-50/70 border border-purple-200/80 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10.5px] font-bold text-purple-950">৪. সবিনা (সাপ্তাহিক শুনানী)</p>
+                    <p className="text-[11px] font-semibold text-purple-900 mt-0.5">
+                      {latestSabak.sabina}
+                    </p>
+                  </div>
+                  <span className="text-[9.5px] font-bold text-purple-700 bg-white border border-purple-200 px-2 py-0.5 rounded-lg shrink-0">
+                    সবিনা
+                  </span>
+                </div>
+              ) : null}
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* ৫. ৩০ পারা হিফজ অগ্রগতি মানচিত্র (30-Para Quran Map) */}
+          <div className="bg-gradient-to-br from-white to-[#F7FBF9] rounded-2xl border border-emerald-100 p-3.5 shadow-xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-emerald-100/80 text-emerald-800 flex items-center justify-center">
+                  <BookOpen size={16} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900 leading-tight">
+                    ৩০ পারা হিফজ অগ্রগতি মানচিত্র
+                  </h3>
+                  <p className="text-[9.5px] text-slate-500">
+                    সম্পন্ন: {completedParasCount} পারা • বাকি: {30 - completedParasCount} পারা ({Math.round((completedParasCount / 30) * 100)}%)
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowParaGrid(!showParaGrid)}
+                className="text-[10px] font-bold text-[#008955] hover:underline cursor-pointer"
+              >
+                {showParaGrid ? 'সংক্ষিপ্ত' : 'সম্পূর্ণ ৩০ পারা'}
+              </button>
+            </div>
+
+            {/* প্রগ্রেস বার */}
+            <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#008955] via-teal-500 to-[#C89B3C] transition-all duration-500"
+                style={{ width: `${(completedParasCount / 30) * 100}%` }}
+              />
+            </div>
+
+            {/* ৩০ পারা ভিজ্যুয়াল গ্রিড */}
+            {showParaGrid && (
+              <div className="grid grid-cols-6 gap-1.5 pt-1.5 animate-in fade-in duration-200">
+                {totalParas.map((paraNum) => {
+                  const isCompleted = paraNum <= completedParasCount;
+                  const isCurrent = paraNum === completedParasCount + 1;
+
+                  return (
+                    <div
+                      key={paraNum}
+                      className={`p-1.5 rounded-xl text-center border text-[10px] font-sans font-bold transition ${
+                        isCompleted
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs'
+                          : isCurrent
+                          ? 'bg-amber-100 text-amber-900 border-amber-300 ring-2 ring-amber-400/50 animate-pulse'
+                          : 'bg-slate-50 text-slate-400 border-slate-200/80'
+                      }`}
+                      title={`পারা ${paraNum}: ${isCompleted ? 'সম্পন্ন' : isCurrent ? 'চলতি সবক' : 'বাকি আছে'}`}
+                    >
+                      <span className="block text-[8px] opacity-75">পারা</span>
+                      <span className="text-[11px] leading-none">{paraNum}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ================= ৬. হাজিরা ও মাসিক খোরাকি স্ট্যাটাস ================= */}
       <div className="grid grid-cols-2 gap-2.5">
