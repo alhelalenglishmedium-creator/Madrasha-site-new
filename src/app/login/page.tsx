@@ -17,7 +17,6 @@ import {
   HelpCircle,
   Phone,
   MessageCircle,
-  Sparkles,
   Lock,
   AlertCircle,
   X,
@@ -125,11 +124,18 @@ export default function LoginPage() {
   // লোডিং স্টেট
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 text-white font-['Noto_Sans_Bengali',sans-serif]">
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 text-white font-['Kalpurush','Hind_Siliguri',sans-serif] kalpurush-hind-text">
+        <style jsx global>{`
+          @import url('https://fonts.maateen.me/kalpurush/font.css');
+          @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
+          .kalpurush-hind-text, .kalpurush-hind-text * {
+            font-family: 'Kalpurush', 'Hind Siliguri', -apple-system, BlinkMacSystemFont, sans-serif !important;
+          }
+        `}</style>
         <div className="flex flex-col items-center gap-3">
           <div className="relative flex h-14 w-14 items-center justify-center">
             <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin" />
-            <Sparkles className="h-6 w-6 text-emerald-400 animate-pulse" />
+            <ShieldCheck className="h-6 w-6 text-emerald-400" />
           </div>
           <p className="text-sm font-bold text-slate-200">নিরাপদ সেশন যাচাই করা হচ্ছে...</p>
         </div>
@@ -140,7 +146,14 @@ export default function LoginPage() {
   // যদি ইউজার ইতিমধ্যে অথেনটিকেটেড থাকে এবং রিডাইরেক্ট চলমান থাকে
   if (user && user.role) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 text-white font-['Noto_Sans_Bengali',sans-serif]">
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 text-white font-['Kalpurush','Hind_Siliguri',sans-serif] kalpurush-hind-text">
+        <style jsx global>{`
+          @import url('https://fonts.maateen.me/kalpurush/font.css');
+          @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
+          .kalpurush-hind-text, .kalpurush-hind-text * {
+            font-family: 'Kalpurush', 'Hind Siliguri', -apple-system, BlinkMacSystemFont, sans-serif !important;
+          }
+        `}</style>
         <div className="flex flex-col items-center gap-3">
           <div className="relative flex h-14 w-14 items-center justify-center">
             <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin" />
@@ -153,7 +166,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center p-3.5 sm:p-6 bg-slate-950 overflow-hidden font-['Noto_Sans_Bengali',sans-serif] selection:bg-emerald-500 selection:text-white">
+    <div className="relative min-h-screen w-full flex items-center justify-center p-3.5 sm:p-6 bg-slate-950 overflow-hidden font-['Kalpurush','Hind_Siliguri',sans-serif] kalpurush-hind-text selection:bg-emerald-500 selection:text-white">
+      <style jsx global>{`
+        @import url('https://fonts.maateen.me/kalpurush/font.css');
+        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
+        .kalpurush-hind-text, .kalpurush-hind-text * {
+          font-family: 'Kalpurush', 'Hind Siliguri', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        }
+      `}</style>
       
       {/* ================= ডায়নামিক অ্যাম্বিয়েন্ট ব্যাকগ্রাউন্ড ================= */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -206,9 +226,6 @@ export default function LoginPage() {
               ) : (
                 <ShieldCheck size={34} className="stroke-[2.2]" />
               )}
-              <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-xs border-2 border-white">
-                <Sparkles size={11} className="stroke-[2.5]" />
-              </div>
             </div>
 
             {/* হেডিং ও সাব-হেডিং */}
@@ -632,7 +649,7 @@ export default function LoginPage() {
 
                   {/* ফরম্যাট সহায়িকা হিন্ট */}
                   <div className="flex items-center gap-1.5 pt-1 text-[10px] text-slate-500">
-                    <Sparkles size={11} className="text-amber-500 shrink-0" />
+                    <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
                     <span>
                       অ্যাডমিন প্যানেল বা রেজিস্ট্রেশন ফর্মে থাকা নির্ধারিত আইডি প্রদান করুন।
                     </span>
