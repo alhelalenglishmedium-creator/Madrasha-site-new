@@ -152,18 +152,62 @@ export default function AttendancePage() {
     try {
       setIsLoading(true);
 
+      // ১. ফার্স্ট রিড: লোকালডিবি থেকে ইনস্ট্যান্ট রেন্ডার
       let loadedStudents = await localDb.students.where('status').equals('active').toArray();
 
-      // ১. প্রতিষ্ঠান ফিল্টারিং
-      loadedStudents = loadedStudents.filter((s) => (s.institutionType || 'madrasa') === activeInstTab);
+      const applyFilters = (stdList: Student[]) => {
+        let filtered = stdList.filter((s) => (s.institutionType || 'madrasa') === activeInstTab);
+        if (selectedClass !== 'সব') {
+          filtered = filtered.filter((s) => s.className === selectedClass);
+        }
+        filtered.sort((a, b) => Number(a.rollNo || 0) - Number(b.rollNo || 0));
+        return filtered;
+      };
 
-      // ২. ক্লাস ফিল্টারিং
-      if (selectedClass !== 'সব') {
-        loadedStudents = loadedStudents.filter((s) => s.className === selectedClass);
+      setStudents(applyFilters(loadedStudents));
+
+      // ২. ব্যাকগ্রাউন্ডে সুপাবেস ক্লাউড স্টুডেন্ট সিঙ্ক
+      try {
+        const { data: supaStudents, error: stdErr } = await supabase
+          .from('students')
+          .select('*')
+          .eq('status', 'active');
+
+        if (!stdErr && supaStudents && supaStudents.length > 0) {
+          const mappedStudents: Student[] = supaStudents.map((s: any) => ({
+            id: s.id,
+            admissionNo: s.admission_no || s.id,
+            fullName: s.full_name || s.fullName || s.name || '',
+            fullNameBangla: s.full_name_bangla || s.fullNameBangla || s.full_name || s.name || '',
+            institutionType: s.institution_type || s.institutionType || 'madrasa',
+            className: s.class_name || s.className || 'প্লে',
+            rollNo: String(s.roll || s.roll_no || '০১'),
+            fatherName: s.father_name || s.fatherName || '',
+            phone: s.phone || '',
+            guardianContacts: Array.isArray(s.guardian_contacts)
+              ? s.guardian_contacts
+              : (typeof s.guardian_contacts === 'string'
+                  ? (function () { try { return JSON.parse(s.guardian_contacts); } catch (e) { return []; } })()
+                  : (s.phone ? [{ id: 'c_1', title: 'অভিভাবক', phone: s.phone }] : [])),
+            address: s.address || '',
+            bloodGroup: s.blood_group || s.bloodGroup || '',
+            monthlyFee: Number(s.monthly_fee || s.monthlyFee || 0),
+            photoUrl: s.photo_url || s.photoUrl || '',
+            status: s.status || 'active',
+            createdAt: s.created_at,
+            updatedAt: s.updated_at || new Date().toISOString(),
+          }));
+
+          await localDb.students.bulkPut(mappedStudents);
+          const refreshedLocal = await localDb.students.where('status').equals('active').toArray();
+          loadedStudents = refreshedLocal;
+          setStudents(applyFilters(refreshedLocal));
+        }
+      } catch (cloudStdErr) {
+        console.warn('Cloud students sync warning:', cloudStdErr);
       }
-      loadedStudents.sort((a, b) => Number(a.rollNo || 0) - Number(b.rollNo || 0));
-      setStudents(loadedStudents);
 
+      // ৩. ক্লাউড হাজিরা সিঙ্ক
       const { data: cloudAttendance } = await supabase.from('attendance').select('*');
       if (cloudAttendance && cloudAttendance.length > 0) {
         const mappedRecords: AttendanceRecord[] = cloudAttendance.map((c: any) => ({
