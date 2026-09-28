@@ -342,16 +342,16 @@ export function MadrasaStudentHome({
                 </span>
               </div>
 
-              {/* ৩. আল-মুখতা */}
+              {/* ৩. আম্মুক্তা */}
               <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between">
                 <div>
-                  <p className="text-[10.5px] font-bold text-amber-950">৩. আল-মুখতা (পেছনের রিভিশন)</p>
+                  <p className="text-[10.5px] font-bold text-amber-950">৩. আম্মুক্তা (পেছনের রিভিশন)</p>
                   <p className="text-[11px] font-semibold text-amber-900 mt-0.5">
                     {latestSabak?.alMukhta || latestSabak?.satpara || 'নির্ধারিত হয়নি'}
                   </p>
                 </div>
                 <span className="text-[9.5px] font-bold text-amber-700 bg-white border border-amber-200 px-2 py-0.5 rounded-lg shrink-0">
-                  পেছনের রিভিশন
+                  আম্মুক্তা
                 </span>
               </div>
 

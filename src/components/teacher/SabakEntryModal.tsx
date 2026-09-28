@@ -1,8 +1,23 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, BookOpen, Save, CheckCircle2, Award, Sparkles, AlertCircle } from 'lucide-react';
+import {
+  X,
+  BookOpen,
+  Save,
+  CheckCircle2,
+  Award,
+  Sparkles,
+  AlertCircle,
+  BookmarkCheck,
+  RotateCcw,
+  Calendar,
+} from 'lucide-react';
 import type { Student } from '@/types/database.types';
+import { localDb } from '@/db/localDb';
+import { supabase } from '@/lib/supabaseClient';
+
+export type HifzSectionType = 'sabak' | 'saatSabak' | 'alMukhta' | 'sabina';
 
 export interface SabakRecord {
   id?: string;
@@ -11,7 +26,7 @@ export interface SabakRecord {
   // ৪টি প্রধান স্তম্ভ
   sabak: string;          // ১. সবক (পারা ও পৃষ্ঠা)
   saatSabak: string;      // ২. সাত সবক (পারা ও পৃষ্ঠা রেঞ্জ)
-  alMukhta: string;       // ৩. আল-মুখতা (পারা ও পৃষ্ঠা রেঞ্জ)
+  alMukhta: string;       // ৩. আম্মুক্তা / আল-মুখতা (পারা ও পৃষ্ঠা রেঞ্জ)
   sabina: string;         // ৪. সবিনা (সাপ্তাহিক শুনানী)
   // ব্যাকওয়ার্ড কম্প্যাটিবিলিটি ফিল্ড
   newSabak: string;
@@ -26,7 +41,8 @@ interface SabakEntryModalProps {
   onClose: () => void;
   student?: Student | null;
   studentsList?: Student[];
-  onSaveSabak: (record: SabakRecord) => Promise<void> | void;
+  initialSection?: HifzSectionType;
+  onSaveSabak: (record: SabakRecord, sectionType: HifzSectionType) => Promise<void> | void;
 }
 
 const GRADES = [
@@ -85,6 +101,7 @@ export function SabakEntryModal({
   onClose,
   student,
   studentsList = [],
+  initialSection = 'sabak',
   onSaveSabak,
 }: SabakEntryModalProps) {
   // শুধুমাত্র হিফজ বিভাগের শিক্ষার্থীদের ফিল্টার করা (Strictly Hifz Only)
@@ -92,7 +109,10 @@ export function SabakEntryModal({
     return studentsList.filter((s) => isHifzStudent(s));
   }, [studentsList]);
 
+  // বর্তমান সক্রিয় সেকশন ট্যাব
+  const [activeSection, setActiveSection] = useState<HifzSectionType>(initialSection);
   const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [currentRecord, setCurrentRecord] = useState<SabakRecord | null>(null);
 
   // ১. সবক স্টেট (আজকের পড়া)
   const [sabakPara, setSabakPara] = useState('১');
@@ -102,7 +122,7 @@ export function SabakEntryModal({
   const [saatSabakPara, setSaatSabakPara] = useState('১');
   const [saatSabakPage, setSaatSabakPage] = useState('');
 
-  // ৩. আল-মুখতা স্টেট (পেছনের রিভিশন)
+  // ৩. আম্মুক্তা স্টেট (পেছনের রিভিশন)
   const [alMukhtaFromPara, setAlMukhtaFromPara] = useState('১');
   const [alMukhtaToPara, setAlMukhtaToPara] = useState('১');
   const [alMukhtaPage, setAlMukhtaPage] = useState('');
@@ -119,14 +139,88 @@ export function SabakEntryModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // মডাল খুললে ইনিশিয়াল সেকশন ও স্টুডেন্ট সেট
   useEffect(() => {
-    if (student && isHifzStudent(student)) {
-      setSelectedStudentId(student.id);
-    } else if (hifzStudents.length > 0) {
-      setSelectedStudentId(hifzStudents[0].id);
+    if (isOpen) {
+      setActiveSection(initialSection);
+      if (student && isHifzStudent(student)) {
+        setSelectedStudentId(student.id);
+      } else if (hifzStudents.length > 0) {
+        setSelectedStudentId(hifzStudents[0].id);
+      }
+      setErrorMessage('');
     }
-    setErrorMessage('');
-  }, [student, hifzStudents, isOpen]);
+  }, [isOpen, initialSection, student, hifzStudents]);
+
+  // নির্বাচিত শিক্ষার্থীর বর্তমান রানিং সবক রেকর্ড লোড
+  useEffect(() => {
+    if (!selectedStudentId) {
+      setCurrentRecord(null);
+      return;
+    }
+
+    const fetchCurrent = async () => {
+      try {
+        if (localDb.sabakRecords) {
+          const all = await localDb.sabakRecords.toArray();
+          const matched = all
+            .filter((s: any) => String(s.studentId).trim() === String(selectedStudentId).trim())
+            .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+          if (matched.length > 0) {
+            const r = matched[0];
+            setCurrentRecord({
+              id: r.id,
+              studentId: selectedStudentId,
+              date: r.date,
+              sabak: r.sabak || r.newSabak || '',
+              saatSabak: r.saatSabak || r.sabki || '',
+              alMukhta: r.alMukhta || r.satpara || '',
+              sabina: r.sabina || '',
+              newSabak: r.sabak || r.newSabak || '',
+              sabki: r.saatSabak || r.sabki || '',
+              satpara: r.alMukhta || r.satpara || '',
+              grade: r.grade || 'মুমতায',
+              remark: r.remark || '',
+            });
+            return;
+          }
+        }
+
+        // Supabase ক্লাউড থেকে
+        const { data } = await supabase
+          .from('sabak_records')
+          .select('*')
+          .eq('student_id', selectedStudentId)
+          .order('date', { ascending: false })
+          .limit(1);
+
+        if (data && data.length > 0) {
+          const r = data[0];
+          setCurrentRecord({
+            id: r.id,
+            studentId: selectedStudentId,
+            date: r.date,
+            sabak: r.sabak || r.new_sabak || r.newSabak || '',
+            saatSabak: r.saat_sabak || r.saatSabak || r.sabki || '',
+            alMukhta: r.al_mukhta || r.alMukhta || r.satpara || '',
+            sabina: r.sabina || '',
+            newSabak: r.sabak || r.new_sabak || r.newSabak || '',
+            sabki: r.saat_sabak || r.saatSabak || r.sabki || '',
+            satpara: r.al_mukhta || r.alMukhta || r.satpara || '',
+            grade: r.grade || 'মুমতায',
+            remark: r.remark || '',
+          });
+        } else {
+          setCurrentRecord(null);
+        }
+      } catch (e) {
+        console.warn('Current sabak fetch warning:', e);
+      }
+    };
+
+    fetchCurrent();
+  }, [selectedStudentId, isOpen]);
 
   const activeStudent = student || hifzStudents.find((s) => s.id === selectedStudentId);
 
@@ -163,14 +257,21 @@ export function SabakEntryModal({
 
   if (!isOpen) return null;
 
+  // সেকশন ভিত্তিক সাবমিট হ্যান্ডলার (শুধুমাত্র সংশ্লিষ্ট সেকশন আপডেট হবে)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudentId) {
       setErrorMessage('অনুগ্রহ করে হিফজ বিভাগের একজন শিক্ষার্থী নির্বাচন করুন!');
       return;
     }
-    if (!sabakPage.trim() && !sabakPara) {
-      setErrorMessage('আজকের নতুন সবকের পারা ও পৃষ্ঠা নম্বর দিন!');
+
+    // সেকশন অনুযায়ী ভ্যালিডেশন
+    if (activeSection === 'sabak' && !sabakPage.trim()) {
+      setErrorMessage('আজকের নতুন সবকের পৃষ্ঠা নম্বর প্রদান করুন!');
+      return;
+    }
+    if (activeSection === 'saatSabak' && !saatSabakPage.trim()) {
+      setErrorMessage('সাত সবকের পৃষ্ঠা বা পৃষ্ঠা রেঞ্জ (যেমন: ১২-১৫) প্রদান করুন!');
       return;
     }
 
@@ -178,25 +279,41 @@ export function SabakEntryModal({
       setIsSubmitting(true);
       setErrorMessage('');
 
+      // শুধুমাত্র সক্রিয় সেকশনটি আপডেট হবে, বাকিগুলো অক্ষত থাকবে
+      const updatedSabak = activeSection === 'sabak'
+        ? formattedSabak
+        : (currentRecord?.sabak || currentRecord?.newSabak || '');
+
+      const updatedSaatSabak = activeSection === 'saatSabak'
+        ? formattedSaatSabak
+        : (currentRecord?.saatSabak || currentRecord?.sabki || '');
+
+      const updatedAlMukhta = activeSection === 'alMukhta'
+        ? formattedAlMukhta
+        : (currentRecord?.alMukhta || currentRecord?.satpara || '');
+
+      const updatedSabina = activeSection === 'sabina'
+        ? formattedSabina
+        : (currentRecord?.sabina || '');
+
       await onSaveSabak({
+        id: currentRecord?.id,
         studentId: selectedStudentId,
         date,
-        // ৪টি স্তম্ভ
-        sabak: formattedSabak,
-        saatSabak: formattedSaatSabak,
-        alMukhta: formattedAlMukhta,
-        sabina: formattedSabina,
-        // ব্যাকওয়ার্ড কম্প্যাটিবিলিটি
-        newSabak: formattedSabak,
-        sabki: formattedSaatSabak,
-        satpara: formattedAlMukhta,
+        sabak: updatedSabak,
+        saatSabak: updatedSaatSabak,
+        alMukhta: updatedAlMukhta,
+        sabina: updatedSabina,
+        newSabak: updatedSabak,
+        sabki: updatedSaatSabak,
+        satpara: updatedAlMukhta,
         grade,
-        remark: remark.trim(),
-      });
+        remark: remark.trim() || currentRecord?.remark || '',
+      }, activeSection);
 
       onClose();
     } catch (err: any) {
-      setErrorMessage(err.message || 'সবক সংরক্ষণ করতে সমস্যা হয়েছে।');
+      setErrorMessage(err.message || 'সংরক্ষণ করতে সমস্যা হয়েছে।');
     } finally {
       setIsSubmitting(false);
     }
@@ -214,12 +331,12 @@ export function SabakEntryModal({
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h2 className="text-base font-bold text-slate-900 leading-tight">হিফজ দৈনিক সবক ও রিভিশন</h2>
+                <h2 className="text-base font-bold text-slate-900 leading-tight">হিফজুল কুরআন দৈনিক ডায়েরি</h2>
                 <span className="text-[9.5px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
                   হিফজ বিভাগ খাস
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">সবক, সাত সবক, আল-মুখতা ও সবিনা মূল্যায়ন</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">আলাদা সময়ে আলাদাভাবে শুনানী এন্ট্রি করুন</p>
             </div>
           </div>
           <button
@@ -231,6 +348,73 @@ export function SabakEntryModal({
           </button>
         </div>
 
+        {/* ================= ৪টি স্তম্ভের আলাদা ট্যাব সিলেকশন ================= */}
+        <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-2xl mt-3.5 border border-slate-200/80">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSection('sabak');
+              setErrorMessage('');
+            }}
+            className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1 ${
+              activeSection === 'sabak'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <BookOpen size={14} />
+            <span>১. সবক</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSection('saatSabak');
+              setErrorMessage('');
+            }}
+            className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1 ${
+              activeSection === 'saatSabak'
+                ? 'bg-sky-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <BookmarkCheck size={14} />
+            <span>২. সাত সবক</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSection('alMukhta');
+              setErrorMessage('');
+            }}
+            className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1 ${
+              activeSection === 'alMukhta'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <Sparkles size={14} />
+            <span>৩. আম্মুক্তা</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSection('sabina');
+              setErrorMessage('');
+            }}
+            className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1 ${
+              activeSection === 'sabina'
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <Award size={14} />
+            <span>৪. সবিনা</span>
+          </button>
+        </div>
+
         {/* এরর মেসেজ */}
         {errorMessage && (
           <div className="mt-3 rounded-2xl bg-rose-50 p-3 text-xs font-semibold text-rose-700 border border-rose-200 flex items-center gap-2">
@@ -239,230 +423,267 @@ export function SabakEntryModal({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <form onSubmit={handleSubmit} className="mt-3.5 space-y-4">
           
           {/* ================= শিক্ষার্থী ও তারিখ নির্বাচন ================= */}
-          {!student && hifzStudents.length > 0 ? (
-            <div>
-              <label className="text-xs font-bold text-slate-800 block mb-1">
-                হিফজ শিক্ষার্থী নির্বাচন করুন *
-              </label>
-              <select
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-800 focus:border-[#008955] focus:bg-white focus:outline-none"
-              >
-                {hifzStudents.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    রোল {toBengaliNum(s.rollNo || '-')} : {s.fullNameBangla || s.fullName} ({s.className})
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : activeStudent ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-3 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#008955] font-bold text-white shadow-xs text-xs">
-                  {toBengaliNum(activeStudent.rollNo || '০১')}
+          <div className="space-y-2">
+            {!student && hifzStudents.length > 0 ? (
+              <div>
+                <label className="text-xs font-bold text-slate-800 block mb-1">
+                  হিফজ শিক্ষার্থী নির্বাচন করুন *
+                </label>
+                <select
+                  value={selectedStudentId}
+                  onChange={(e) => setSelectedStudentId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-800 focus:border-[#008955] focus:bg-white focus:outline-none"
+                >
+                  {hifzStudents.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      রোল {toBengaliNum(s.rollNo || '-')} : {s.fullNameBangla || s.fullName} ({s.className})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : activeStudent ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#008955] font-bold text-white shadow-xs text-xs">
+                    {toBengaliNum(activeStudent.rollNo || '০১')}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">
+                      {activeStudent.fullNameBangla || activeStudent.fullName}
+                    </p>
+                    <p className="text-[10.5px] text-emerald-800 font-medium">
+                      বিভাগ: {activeStudent.className || 'হিফজুল কুরআন'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">
-                    {activeStudent.fullNameBangla || activeStudent.fullName}
-                  </p>
-                  <p className="text-[10.5px] text-emerald-800 font-medium">
-                    বিভাগ: {activeStudent.className || 'হিফজুল কুরআন'}
-                  </p>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 focus:outline-none"
+                />
+              </div>
+            ) : (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
+                হিফজুল কুরআন বিভাগের কোনো শিক্ষার্থী পাওয়া যায়নি।
+              </div>
+            )}
+
+            {/* শিক্ষার্থীর বর্তমান রানিং অবস্থা এক নজরে */}
+            {currentRecord && (
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] space-y-1">
+                <span className="font-bold text-slate-700 block text-[10px] uppercase tracking-wider">
+                  শিক্ষার্থীর বর্তমান রানিং অগ্রগতি:
+                </span>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-slate-600">
+                  <p><span className="font-bold text-emerald-700">সবক:</span> {currentRecord.sabak || currentRecord.newSabak || 'নির্ধারিত হয়নি'}</p>
+                  <p><span className="font-bold text-sky-700">সাত সবক:</span> {currentRecord.saatSabak || currentRecord.sabki || 'নির্ধারিত হয়নি'}</p>
+                  <p><span className="font-bold text-amber-700">আম্মুক্তা:</span> {currentRecord.alMukhta || currentRecord.satpara || 'নির্ধারিত হয়নি'}</p>
+                  <p><span className="font-bold text-purple-700">সবিনা:</span> {currentRecord.sabina || 'শুনানী নেই'}</p>
                 </div>
               </div>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 focus:outline-none"
-              />
-            </div>
-          ) : (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
-              হিফজুল কুরআন বিভাগের কোনো শিক্ষার্থী পাওয়া যায়নি।
+            )}
+          </div>
+
+          {/* ================= ১. শুধু সবক ফর্ম ================= */}
+          {activeSection === 'sabak' && (
+            <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200/90 space-y-3 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                  <span className="text-xs font-bold text-emerald-950">১. সবক এন্ট্রি (আজকের নতুন পাঠ শুনানী)</span>
+                </div>
+                <span className="text-[10px] text-emerald-800 font-bold bg-white border border-emerald-200 px-2 py-0.5 rounded-md shadow-2xs">
+                  {formattedSabak}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] text-slate-700 font-bold block mb-1">পারা নির্বাচন *</label>
+                  <select
+                    value={sabakPara}
+                    onChange={(e) => setSabakPara(e.target.value)}
+                    className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-[#008955] focus:outline-none"
+                  >
+                    {paraOptions.map((p) => (
+                      <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-slate-700 font-bold block mb-1">পৃষ্ঠা নম্বর *</label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: ১২ বা ১৫"
+                    value={sabakPage}
+                    onChange={(e) => setSabakPage(e.target.value)}
+                    className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 placeholder-slate-400 focus:border-[#008955] focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+              </div>
             </div>
           )}
 
-          {/* ================= ১. সবক (আজকের নতুন পড়া) ================= */}
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-600" />
-                <span>১. সবক (আজকের নতুন পাঠ) *</span>
-              </span>
-              <span className="text-[10px] text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded-md">
-                {formattedSabak}
-              </span>
-            </div>
+          {/* ================= ২. শুধু সাত সবক ফর্ম ================= */}
+          {activeSection === 'saatSabak' && (
+            <div className="p-3.5 rounded-2xl bg-sky-50/60 border border-sky-200/90 space-y-3 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-sky-100 pb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full bg-sky-600" />
+                  <span className="text-xs font-bold text-sky-950">২. সাত সবক এন্ট্রি (চলতি পারার রিভিশন শুনানী)</span>
+                </div>
+                <span className="text-[10px] text-sky-800 font-bold bg-white border border-sky-200 px-2 py-0.5 rounded-md shadow-2xs">
+                  {formattedSaatSabak}
+                </span>
+              </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="text-[10.5px] text-slate-500 font-medium block mb-1">পারা নির্বাচন</label>
-                <select
-                  value={sabakPara}
-                  onChange={(e) => setSabakPara(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-[#008955] focus:outline-none"
-                >
-                  {paraOptions.map((p) => (
-                    <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] text-slate-700 font-bold block mb-1">পারা নির্বাচন *</label>
+                  <select
+                    value={saatSabakPara}
+                    onChange={(e) => setSaatSabakPara(e.target.value)}
+                    className="w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-sky-500 focus:outline-none"
+                  >
+                    {paraOptions.map((p) => (
+                      <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-slate-700 font-bold block mb-1">পৃষ্ঠা রেঞ্জ *</label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: ১২-১৫ বা ৫-১০"
+                    value={saatSabakPage}
+                    onChange={(e) => setSaatSabakPage(e.target.value)}
+                    className="w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 placeholder-slate-400 focus:border-sky-500 focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ================= ৩. শুধু আম্মুক্তা ফর্ম ================= */}
+          {activeSection === 'alMukhta' && (
+            <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200/90 space-y-3 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-amber-100 pb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-600" />
+                  <span className="text-xs font-bold text-amber-950">৩. আম্মুক্তা এন্ট্রি (পেছনের মুখস্থ পারার নিয়মিত দোহর)</span>
+                </div>
+                <span className="text-[10px] text-amber-800 font-bold bg-white border border-amber-200 px-2 py-0.5 rounded-md shadow-2xs">
+                  {formattedAlMukhta}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[11px] text-slate-700 font-bold block mb-1">শুরু পারা *</label>
+                  <select
+                    value={alMukhtaFromPara}
+                    onChange={(e) => setAlMukhtaFromPara(e.target.value)}
+                    className="w-full rounded-xl border border-amber-200 bg-white px-2 py-2 text-xs font-bold text-slate-800 focus:outline-none"
+                  >
+                    {paraOptions.map((p) => (
+                      <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-slate-700 font-bold block mb-1">শেষ পারা *</label>
+                  <select
+                    value={alMukhtaToPara}
+                    onChange={(e) => setAlMukhtaToPara(e.target.value)}
+                    className="w-full rounded-xl border border-amber-200 bg-white px-2 py-2 text-xs font-bold text-slate-800 focus:outline-none"
+                  >
+                    {paraOptions.map((p) => (
+                      <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-slate-700 font-bold block mb-1">পৃষ্ঠা (ঐচ্ছিক)</label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: ১-২০"
+                    value={alMukhtaPage}
+                    onChange={(e) => setAlMukhtaPage(e.target.value)}
+                    className="w-full rounded-xl border border-amber-200 bg-white px-2 py-2 text-xs font-bold text-slate-800 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ================= ৪. শুধু সবিনা ফর্ম ================= */}
+          {activeSection === 'sabina' && (
+            <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-200/90 space-y-3 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-purple-100 pb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full bg-purple-600" />
+                  <span className="text-xs font-bold text-purple-950">৪. সবিনা এন্ট্রি (সাপ্তাহিক সামগ্রিক পূর্ণ পারা শুনানী)</span>
+                </div>
+                <span className="text-[10px] text-purple-800 font-bold bg-white border border-purple-200 px-2 py-0.5 rounded-md shadow-2xs">
+                  {formattedSabina}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] text-slate-700 font-bold block mb-1">শুরু পারা *</label>
+                  <select
+                    value={sabinaFromPara}
+                    onChange={(e) => setSabinaFromPara(e.target.value)}
+                    className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none"
+                  >
+                    {paraOptions.map((p) => (
+                      <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-slate-700 font-bold block mb-1">শেষ পারা *</label>
+                  <select
+                    value={sabinaToPara}
+                    onChange={(e) => setSabinaToPara(e.target.value)}
+                    className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none"
+                  >
+                    {paraOptions.map((p) => (
+                      <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
-                <label className="text-[10.5px] text-slate-500 font-medium block mb-1">পৃষ্ঠা (যেমন: ১২ বা ১২-১৫)</label>
+                <label className="text-[11px] text-slate-700 font-bold block mb-1">কাস্টম শুনানী নোট (ঐচ্ছিক)</label>
                 <input
                   type="text"
-                  placeholder="যেমন: ১২ বা ১২-১৫"
-                  value={sabakPage}
-                  onChange={(e) => setSabakPage(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 placeholder-slate-400 focus:border-[#008955] focus:outline-none"
-                  required
+                  placeholder="যেমন: পারা ১ থেকে পারা ৫ সম্পূর্ণ শুনানী সম্পন্ন হয়েছে"
+                  value={sabinaCustom}
+                  onChange={(e) => setSabinaCustom(e.target.value)}
+                  className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none"
                 />
               </div>
             </div>
-          </div>
-
-          {/* ================= ২. সাত সবক (চলতি রিভিশন) ================= */}
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-blue-600" />
-                <span>২. সাত সবক (চলতি রিভিশন)</span>
-              </span>
-              <span className="text-[10px] text-blue-800 font-bold bg-blue-100 px-2 py-0.5 rounded-md">
-                {formattedSaatSabak}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="text-[10.5px] text-slate-500 font-medium block mb-1">পারা নির্বাচন</label>
-                <select
-                  value={saatSabakPara}
-                  onChange={(e) => setSaatSabakPara(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-[#008955] focus:outline-none"
-                >
-                  {paraOptions.map((p) => (
-                    <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10.5px] text-slate-500 font-medium block mb-1">পৃষ্ঠা রেঞ্জ (যেমন: ১-১০)</label>
-                <input
-                  type="text"
-                  placeholder="যেমন: ১-১০ বা ১৫"
-                  value={saatSabakPage}
-                  onChange={(e) => setSaatSabakPage(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 placeholder-slate-400 focus:border-[#008955] focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ================= ৩. আল-মুখতা (পেছনের রিভিশন) ================= */}
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-purple-600" />
-                <span>৩. আল-মুখতা (পেছনের মুখস্থ অংশ)</span>
-              </span>
-              <span className="text-[10px] text-purple-800 font-bold bg-purple-100 px-2 py-0.5 rounded-md">
-                {formattedAlMukhta}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="text-[10px] text-slate-500 font-medium block mb-1">শুরু পারা</label>
-                <select
-                  value={alMukhtaFromPara}
-                  onChange={(e) => setAlMukhtaFromPara(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-bold text-slate-800 focus:outline-none"
-                >
-                  {paraOptions.map((p) => (
-                    <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-slate-500 font-medium block mb-1">শেষ পারা</label>
-                <select
-                  value={alMukhtaToPara}
-                  onChange={(e) => setAlMukhtaToPara(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-bold text-slate-800 focus:outline-none"
-                >
-                  {paraOptions.map((p) => (
-                    <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-slate-500 font-medium block mb-1">পৃষ্ঠা (ঐচ্ছিক)</label>
-                <input
-                  type="text"
-                  placeholder="যেমন: ১-২০"
-                  value={alMukhtaPage}
-                  onChange={(e) => setAlMukhtaPage(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-bold text-slate-800 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ================= ৪. সবিনা (সাপ্তাহিক সামগ্রিক শুনানী) ================= */}
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-amber-600" />
-                <span>৪. সবিনা (সাপ্তাহিক শুনানী)</span>
-              </span>
-              <span className="text-[10px] text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded-md">
-                {formattedSabina}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="text-[10.5px] text-slate-500 font-medium block mb-1">শুরু পারা</label>
-                <select
-                  value={sabinaFromPara}
-                  onChange={(e) => setSabinaFromPara(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none"
-                >
-                  {paraOptions.map((p) => (
-                    <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10.5px] text-slate-500 font-medium block mb-1">শেষ পারা</label>
-                <select
-                  value={sabinaToPara}
-                  onChange={(e) => setSabinaToPara(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none"
-                >
-                  {paraOptions.map((p) => (
-                    <option key={p} value={p}>পারা {toBengaliNum(p)}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* ================= পড়ার মান ও মূল্যায়ন ================= */}
           <div>
             <label className="text-xs font-bold text-slate-800 block mb-1.5">
-              পড়ার মান / মূল্যায়ন *
+              শুনানীর মান / মূল্যায়ন *
             </label>
             <div className="flex flex-wrap gap-1.5">
               {GRADES.map((g) => (
@@ -508,10 +729,28 @@ export function SabakEntryModal({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-1.5 rounded-xl bg-[#008955] hover:bg-[#007347] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition active:scale-95 disabled:opacity-50 cursor-pointer"
+              className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-sm transition active:scale-95 disabled:opacity-50 cursor-pointer ${
+                activeSection === 'sabak'
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                  : activeSection === 'saatSabak'
+                  ? 'bg-sky-600 hover:bg-sky-700'
+                  : activeSection === 'alMukhta'
+                  ? 'bg-amber-600 hover:bg-amber-700'
+                  : 'bg-purple-600 hover:bg-purple-700'
+              }`}
             >
               <Save size={15} />
-              <span>{isSubmitting ? 'সংরক্ষণ হচ্ছে...' : 'সবক সংরক্ষণ করুন'}</span>
+              <span>
+                {isSubmitting
+                  ? 'সংরক্ষণ হচ্ছে...'
+                  : activeSection === 'sabak'
+                  ? 'নতুন সবক সংরক্ষণ করুন'
+                  : activeSection === 'saatSabak'
+                  ? 'সাত সবক সংরক্ষণ করুন'
+                  : activeSection === 'alMukhta'
+                  ? 'আম্মুক্তা সংরক্ষণ করুন'
+                  : 'সবিনা সংরক্ষণ করুন'}
+              </span>
             </button>
           </div>
 

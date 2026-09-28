@@ -20,6 +20,8 @@ import {
   BellRing,
   Megaphone,
   BookOpen,
+  BookmarkCheck,
+  Award,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { localDb } from '@/db/localDb';
@@ -30,7 +32,7 @@ import { TeacherBottomNav, type TeacherTab } from './TeacherBottomNav';
 import { TeacherAttendanceSheet } from './TeacherAttendanceSheet';
 import { TeacherHadiyaTab, type SalaryRecord } from './TeacherHadiyaTab';
 import { TeacherProfile } from './TeacherProfile';
-import { SabakEntryModal, type SabakRecord, isHifzStudent } from './SabakEntryModal';
+import { SabakEntryModal, type SabakRecord, type HifzSectionType, isHifzStudent } from './SabakEntryModal';
 import { DashboardHeader } from '@/components/common/DashboardHeader';
 import type { Notice } from '@/components/admin/NoticeModal';
 import { PrayerScheduleModal } from '../student/PrayerScheduleModal';
@@ -73,33 +75,43 @@ export function TeacherDashboard() {
   // সবক ট্র্যাকিং স্টেট
   const [isSabakModalOpen, setIsSabakModalOpen] = useState<boolean>(false);
   const [selectedSabakStudent, setSelectedSabakStudent] = useState<Student | null>(null);
+  const [sabakModalSection, setSabakModalSection] = useState<HifzSectionType>('sabak');
   const [sabakSuccessToast, setSabakSuccessToast] = useState<string>('');
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const currentMonthISO = useMemo(() => new Date().toISOString().slice(0, 7), []);
 
-  const handleSaveSabak = async (record: SabakRecord) => {
-    const sabakId = `sbk_${Date.now()}`;
+  const handleSaveSabak = async (record: SabakRecord, sectionType: HifzSectionType = 'sabak') => {
+    const sabakId = record.id || `sbk_${Date.now()}`;
     const nowIso = new Date().toISOString();
 
     try {
       if (localDb.sabakRecords) {
-        await localDb.sabakRecords.put({
-          id: sabakId,
+        // বিদ্যমান রেকর্ড থাকলে সেটি দিয়ে মার্জ করা
+        const localRecords = await localDb.sabakRecords.toArray();
+        const existing = localRecords
+          .filter((s: any) => String(s.studentId).trim() === String(record.studentId).trim())
+          .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
+        const merged: any = {
+          id: existing?.id || sabakId,
           studentId: record.studentId,
           date: record.date,
-          sabak: record.sabak || record.newSabak,
-          saatSabak: record.saatSabak || record.sabki,
-          alMukhta: record.alMukhta || record.satpara,
-          sabina: record.sabina || '',
-          newSabak: record.sabak || record.newSabak,
-          sabki: record.saatSabak || record.sabki,
-          satpara: record.alMukhta || record.satpara,
-          grade: record.grade,
-          remark: record.remark || '',
+          sabak: record.sabak || existing?.sabak || existing?.newSabak || '',
+          saatSabak: record.saatSabak || existing?.saatSabak || existing?.sabki || '',
+          alMukhta: record.alMukhta || existing?.alMukhta || existing?.satpara || '',
+          sabina: record.sabina || existing?.sabina || '',
+          newSabak: record.sabak || existing?.sabak || existing?.newSabak || '',
+          sabki: record.saatSabak || existing?.saatSabak || existing?.sabki || '',
+          satpara: record.alMukhta || existing?.alMukhta || existing?.satpara || '',
+          grade: record.grade || existing?.grade || 'মুমতায',
+          remark: record.remark || existing?.remark || '',
           synced: true,
-          createdAt: nowIso,
-        });
+          createdAt: existing?.createdAt || nowIso,
+          updatedAt: nowIso,
+        };
+
+        await localDb.sabakRecords.put(merged);
       }
     } catch (e) {
       console.warn('Local sabak save warning:', e);
@@ -121,7 +133,14 @@ export function TeacherDashboard() {
       console.warn('Supabase sabak insert warning:', e);
     }
 
-    setSabakSuccessToast('হিফজ সবক সফলভাবে সংরক্ষিত হয়েছে!');
+    const sectionLabels: Record<HifzSectionType, string> = {
+      sabak: 'নতুন সবক',
+      saatSabak: 'সাত সবক',
+      alMukhta: 'আম্মুক্তা (পেছনের রিভিশন)',
+      sabina: 'সবিনা',
+    };
+
+    setSabakSuccessToast(`${sectionLabels[sectionType]} সফলভাবে সংরক্ষিত হয়েছে!`);
     setTimeout(() => setSabakSuccessToast(''), 3000);
   };
 
@@ -718,36 +737,116 @@ export function TeacherDashboard() {
                 </button>
               </div>
 
-              {/* প্রধান অ্যাকশন বাটন ২: দৈনিক সবক ও রিভিশন এন্ট্রি */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedSabakStudent(null);
-                    setIsSabakModalOpen(true);
-                  }}
-                  className="w-full py-3 px-4 rounded-2xl bg-white border border-emerald-200/90 hover:border-[#008955] text-slate-800 text-xs font-bold shadow-2xs active:scale-[0.99] transition flex items-center justify-between cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-xl bg-emerald-50 text-[#008955] flex items-center justify-center group-hover:bg-[#008955] group-hover:text-white transition">
-                      <BookOpen size={18} />
-                    </div>
-                    <div className="text-left">
-                      <div className="flex items-center gap-1.5">
-                        <p className="leading-tight font-bold text-slate-900">
-                          দৈনিক সবক ও রিভিশন এন্ট্রি
-                        </p>
-                        <span className="text-[9px] bg-emerald-100 text-[#008955] px-1.5 py-0.5 rounded font-bold">
-                          হিফজ বিভাগ খাস
-                        </span>
+              {/* ================= হিফজ বিভাগ খাস ট্র্যাকিং ড্যাশবোর্ড ================= */}
+              <div className="pt-2 space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-[#008955] animate-pulse" />
+                    <h3 className="text-xs font-bold text-slate-800">হিফজুল কুরআন দৈনিক ট্র্যাকিং</h3>
+                  </div>
+                  <span className="text-[9px] bg-emerald-100 text-[#008955] px-2 py-0.5 rounded font-extrabold border border-emerald-200">
+                    হিফজ বিভাগ খাস
+                  </span>
+                </div>
+
+                {/* ৪টি আলাদা এন্ট্রি বাটন গ্রিড */}
+                <div className="grid grid-cols-2 gap-2">
+                  {/* ১. সবক বাটন */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSabakStudent(null);
+                      setSabakModalSection('sabak');
+                      setIsSabakModalOpen(true);
+                    }}
+                    className="p-3 rounded-2xl bg-white border border-emerald-200 hover:border-[#008955] shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between w-full mb-1.5">
+                      <div className="h-8 w-8 rounded-xl bg-emerald-50 text-[#008955] flex items-center justify-center group-hover:bg-[#008955] group-hover:text-white transition">
+                        <BookOpen size={16} />
                       </div>
-                      <span className="text-[10px] text-slate-500 block mt-0.5">
-                        সবক, সাত সবক, আল-মুখতা ও সবিনা রেকর্ড করুন
+                      <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded">
+                        নতুন পাঠ
                       </span>
                     </div>
-                  </div>
-                  <ArrowRight size={16} className="text-slate-400 group-hover:text-[#008955] transition" />
-                </button>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 group-hover:text-[#008955] transition">১. সবক এন্ট্রি</p>
+                      <span className="text-[9.5px] text-slate-400 block mt-0.5">আজকের নতুন পাঠ শুনানী</span>
+                    </div>
+                  </button>
+
+                  {/* ২. সাত সবক বাটন */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSabakStudent(null);
+                      setSabakModalSection('saatSabak');
+                      setIsSabakModalOpen(true);
+                    }}
+                    className="p-3 rounded-2xl bg-white border border-sky-200 hover:border-sky-500 shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between w-full mb-1.5">
+                      <div className="h-8 w-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center group-hover:bg-sky-600 group-hover:text-white transition">
+                        <BookmarkCheck size={16} />
+                      </div>
+                      <span className="text-[9px] font-bold text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded">
+                        চলতি রিভিশন
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 group-hover:text-sky-700 transition">২. সাত সবক এন্ট্রি</p>
+                      <span className="text-[9.5px] text-slate-400 block mt-0.5">চলতি পারার পৃষ্ঠা দোহর</span>
+                    </div>
+                  </button>
+
+                  {/* ৩. আম্মুক্তা বাটন */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSabakStudent(null);
+                      setSabakModalSection('alMukhta');
+                      setIsSabakModalOpen(true);
+                    }}
+                    className="p-3 rounded-2xl bg-white border border-amber-200 hover:border-amber-500 shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between w-full mb-1.5">
+                      <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition">
+                        <Sparkles size={16} />
+                      </div>
+                      <span className="text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded">
+                        আম্মুক্তা
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 group-hover:text-amber-700 transition">৩. আম্মুক্তা এন্ট্রি</p>
+                      <span className="text-[9.5px] text-slate-400 block mt-0.5">পেছনের মুখস্থ পারার দোহর</span>
+                    </div>
+                  </button>
+
+                  {/* ৪. সবিনা বাটন */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSabakStudent(null);
+                      setSabakModalSection('sabina');
+                      setIsSabakModalOpen(true);
+                    }}
+                    className="p-3 rounded-2xl bg-white border border-purple-200 hover:border-purple-500 shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between w-full mb-1.5">
+                      <div className="h-8 w-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition">
+                        <Award size={16} />
+                      </div>
+                      <span className="text-[9px] font-bold text-purple-800 bg-purple-50 px-1.5 py-0.5 rounded">
+                        সাপ্তাহিক
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 group-hover:text-purple-700 transition">৪. সবিনা এন্ট্রি</p>
+                      <span className="text-[9.5px] text-slate-400 block mt-0.5">এক বৈঠকে পূর্ণ পারা শুনানী</span>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {/* শিক্ষার্থী ও অভিভাবক যোগাযোগ তালিকা */}
@@ -802,13 +901,14 @@ export function TeacherDashboard() {
                               type="button"
                               onClick={() => {
                                 setSelectedSabakStudent(std);
+                                setSabakModalSection('sabak');
                                 setIsSabakModalOpen(true);
                               }}
-                              className="h-8 px-2.5 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-600 hover:text-white border border-amber-200 flex items-center gap-1 text-[11px] font-bold transition active:scale-95 shadow-2xs"
-                              title="সবক ও রিভিশন এন্ট্রি দিন"
+                              className="h-8 px-2.5 rounded-xl bg-emerald-50 text-[#008955] hover:bg-[#008955] hover:text-white border border-emerald-200 flex items-center gap-1 text-[11px] font-bold transition active:scale-95 shadow-2xs"
+                              title="হিফজ দৈনিক ডায়েরি এন্ট্রি দিন"
                             >
                               <BookOpen size={11} />
-                              <span>সবক</span>
+                              <span>হিফজ ডায়েরি</span>
                             </button>
                           )}
                           {std.phone ? (
@@ -1003,9 +1103,13 @@ export function TeacherDashboard() {
       {/* কুরআন সবক এন্ট্রি মোডাল */}
       <SabakEntryModal
         isOpen={isSabakModalOpen}
-        onClose={() => setIsSabakModalOpen(false)}
+        onClose={() => {
+          setIsSabakModalOpen(false);
+          setSelectedSabakStudent(null);
+        }}
         student={selectedSabakStudent}
         studentsList={students}
+        initialSection={sabakModalSection}
         onSaveSabak={handleSaveSabak}
       />
 
