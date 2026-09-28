@@ -23,6 +23,7 @@ import type { Notice } from '@/components/admin/NoticeModal';
 import { supabase } from '@/lib/supabaseClient';
 import { localDb } from '@/db/localDb';
 import { isHifzStudent } from '../teacher/SabakEntryModal';
+import { fetchLatestSabak, type SabakData } from '@/lib/sabakService';
 
 interface MadrasaStudentHomeProps {
   student: Student;
@@ -56,18 +57,8 @@ export function MadrasaStudentHome({
   // শুধুমাত্র হিফজুল কুরআন শিক্ষার্থী কিনা
   const isHifz = isHifzStudent(student);
 
-  // সবক রেকর্ড স্টেট (৪টি স্তম্ভ: সবক, সাত সবক, আল-মুখতা, সবিনা)
-  const [latestSabak, setLatestSabak] = useState<{
-    sabak: string;
-    saatSabak: string;
-    alMukhta: string;
-    sabina: string;
-    newSabak: string;
-    sabki: string;
-    satpara: string;
-    grade: string;
-    date: string;
-  } | null>(null);
+  // সবক রেকর্ড স্টেট (সেন্ট্রাল ডাটা সার্ভিস থেকে সিঙ্কড)
+  const [latestSabak, setLatestSabak] = useState<SabakData | null>(null);
 
   // ৩০ পারা হিফজ অগ্রগতি স্টেট (ডিফল্ট বা সংরক্ষিত ডাটা)
   const [completedParasCount, setCompletedParasCount] = useState<number>(12); // উদাহারণস্বরূপ ১২ পারা
@@ -79,83 +70,27 @@ export function MadrasaStudentHome({
       return;
     }
 
-    const fetchSabak = async () => {
-      try {
-        const candidateIds = Array.from(
-          new Set(
-            [
-              String(student.id || '').trim(),
-              String(student.admissionNo || '').trim(),
-              String((student as any).identifier || '').trim(),
-              String(student.rollNo || '').trim(),
-            ].filter(Boolean)
-          )
-        );
-
-        // ১. Supabase থেকে
-        const { data, error } = await supabase
-          .from('sabak_records')
-          .select('*')
-          .in('student_id', candidateIds)
-          .order('date', { ascending: false })
-          .limit(1);
-
-        if (!error && data && data.length > 0) {
-          const r = data[0];
-          setLatestSabak({
-            sabak: r.sabak || r.new_sabak || r.newSabak || 'পারা ১৬ • পৃষ্ঠা ৩০৫',
-            saatSabak: r.saat_sabak || r.saatSabak || r.sabki || 'পারা ১৫ সম্পূর্ণ',
-            alMukhta: r.al_mukhta || r.alMukhta || r.satpara || 'পারা ১ থেকে ৩',
-            sabina: r.sabina || '',
-            newSabak: r.sabak || r.new_sabak || r.newSabak || 'পারা ১৬ • পৃষ্ঠা ৩০৫',
-            sabki: r.saat_sabak || r.saatSabak || r.sabki || 'পারা ১৫ সম্পূর্ণ',
-            satpara: r.al_mukhta || r.alMukhta || r.satpara || 'পারা ১ থেকে ৩',
-            grade: r.grade || 'মুমতায',
-            date: r.date,
-          });
-          return;
-        }
-
-        // ২. লোকাল Dexie
-        if (localDb.sabakRecords) {
-          const localRecords = await localDb.sabakRecords.toArray();
-          const matched = localRecords
-            .filter((s: any) => candidateIds.includes(String(s.studentId).trim()))
-            .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-          if (matched.length > 0) {
-            const r = matched[0];
-            setLatestSabak({
-              sabak: r.sabak || r.newSabak || 'পারা ১৬ • পৃষ্ঠা ৩০৫',
-              saatSabak: r.saatSabak || r.sabki || 'পারা ১৫ সম্পূর্ণ',
-              alMukhta: r.alMukhta || r.satpara || 'পারা ১ থেকে ৩',
-              sabina: r.sabina || '',
-              newSabak: r.sabak || r.newSabak || 'পারা ১৬ • পৃষ্ঠা ৩০৫',
-              sabki: r.saatSabak || r.sabki || 'পারা ১৫ সম্পূর্ণ',
-              satpara: r.alMukhta || r.satpara || 'পারা ১ থেকে ৩',
-              grade: r.grade || 'মুমতায',
-              date: r.date,
-            });
-            return;
-          }
-        }
-
-        // ফলব্যাক ডিফল্ট মাদ্রাসা সবক (শুধুমাত্র হিফজ শিক্ষার্থীর ডেমোর জন্য)
-        setLatestSabak({
-          sabak: 'পারা ১৬ • পৃষ্ঠা ৩০৫',
-          saatSabak: 'পারা ১৫ • পৃষ্ঠা ২৯০ - ৩০৪',
-          alMukhta: 'পারা ১ থেকে পারা ৩ পর্যন্ত • পৃষ্ঠা ১ - ৬০',
-          sabina: 'পারা ১ থেকে পারা ৫ সম্পূর্ণ শুনানী',
-          newSabak: 'পারা ১৬ • পৃষ্ঠা ৩০৫',
-          sabki: 'পারা ১৫ • পৃষ্ঠা ২৯০ - ৩০৪',
-          satpara: 'পারা ১ থেকে পারা ৩ পর্যন্ত',
-          grade: 'মুমতায (উত্তম)',
-          date: new Date().toISOString().split('T')[0],
-        });
-      } catch (e) {}
+    const loadSabak = async () => {
+      const data = await fetchLatestSabak(student);
+      if (data) {
+        setLatestSabak(data);
+      }
     };
 
-    fetchSabak();
+    loadSabak();
+
+    // শিক্ষক বা এডমিন যেকোনো স্থান থেকে সবক পরিবর্তন করলে তাৎক্ষণিক অটো-সিঙ্ক
+    const handleLiveSync = () => {
+      loadSabak();
+    };
+
+    window.addEventListener('sabak_updated', handleLiveSync);
+    window.addEventListener('storage', handleLiveSync);
+
+    return () => {
+      window.removeEventListener('sabak_updated', handleLiveSync);
+      window.removeEventListener('storage', handleLiveSync);
+    };
   }, [student, isHifz]);
 
   // ৩০ পারার তালিকা

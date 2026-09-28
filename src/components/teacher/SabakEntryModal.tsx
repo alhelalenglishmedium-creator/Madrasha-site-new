@@ -16,6 +16,7 @@ import {
 import type { Student } from '@/types/database.types';
 import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
+import { fetchLatestSabak } from '@/lib/sabakService';
 
 export type HifzSectionType = 'sabak' | 'saatSabak' | 'alMukhta' | 'sabina';
 
@@ -161,56 +162,12 @@ export function SabakEntryModal({
 
     const fetchCurrent = async () => {
       try {
-        if (localDb.sabakRecords) {
-          const all = await localDb.sabakRecords.toArray();
-          const matched = all
-            .filter((s: any) => String(s.studentId).trim() === String(selectedStudentId).trim())
-            .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-          if (matched.length > 0) {
-            const r = matched[0];
-            setCurrentRecord({
-              id: r.id,
-              studentId: selectedStudentId,
-              date: r.date,
-              sabak: r.sabak || r.newSabak || '',
-              saatSabak: r.saatSabak || r.sabki || '',
-              alMukhta: r.alMukhta || r.satpara || '',
-              sabina: r.sabina || '',
-              newSabak: r.sabak || r.newSabak || '',
-              sabki: r.saatSabak || r.sabki || '',
-              satpara: r.alMukhta || r.satpara || '',
-              grade: r.grade || 'মুমতায',
-              remark: r.remark || '',
-            });
-            return;
-          }
-        }
-
-        // Supabase ক্লাউড থেকে
-        const { data } = await supabase
-          .from('sabak_records')
-          .select('*')
-          .eq('student_id', selectedStudentId)
-          .order('date', { ascending: false })
-          .limit(1);
-
-        if (data && data.length > 0) {
-          const r = data[0];
-          setCurrentRecord({
-            id: r.id,
-            studentId: selectedStudentId,
-            date: r.date,
-            sabak: r.sabak || r.new_sabak || r.newSabak || '',
-            saatSabak: r.saat_sabak || r.saatSabak || r.sabki || '',
-            alMukhta: r.al_mukhta || r.alMukhta || r.satpara || '',
-            sabina: r.sabina || '',
-            newSabak: r.sabak || r.new_sabak || r.newSabak || '',
-            sabki: r.saat_sabak || r.saatSabak || r.sabki || '',
-            satpara: r.al_mukhta || r.alMukhta || r.satpara || '',
-            grade: r.grade || 'মুমতায',
-            remark: r.remark || '',
-          });
+        const studentObj =
+          hifzStudents.find((s) => s.id === selectedStudentId) ||
+          (student?.id === selectedStudentId ? student : ({ id: selectedStudentId } as any));
+        const res = await fetchLatestSabak(studentObj);
+        if (res) {
+          setCurrentRecord(res as any);
         } else {
           setCurrentRecord(null);
         }
@@ -220,7 +177,7 @@ export function SabakEntryModal({
     };
 
     fetchCurrent();
-  }, [selectedStudentId, isOpen]);
+  }, [selectedStudentId, isOpen, hifzStudents, student]);
 
   const activeStudent = student || hifzStudents.find((s) => s.id === selectedStudentId);
 

@@ -33,6 +33,7 @@ import { TeacherAttendanceSheet } from './TeacherAttendanceSheet';
 import { TeacherHadiyaTab, type SalaryRecord } from './TeacherHadiyaTab';
 import { TeacherProfile } from './TeacherProfile';
 import { SabakEntryModal, type SabakRecord, type HifzSectionType, isHifzStudent } from './SabakEntryModal';
+import { saveSabakRecord } from '@/lib/sabakService';
 import { DashboardHeader } from '@/components/common/DashboardHeader';
 import type { Notice } from '@/components/admin/NoticeModal';
 import { PrayerScheduleModal } from '../student/PrayerScheduleModal';
@@ -82,55 +83,10 @@ export function TeacherDashboard() {
   const currentMonthISO = useMemo(() => new Date().toISOString().slice(0, 7), []);
 
   const handleSaveSabak = async (record: SabakRecord, sectionType: HifzSectionType = 'sabak') => {
-    const sabakId = record.id || `sbk_${Date.now()}`;
-    const nowIso = new Date().toISOString();
-
     try {
-      if (localDb.sabakRecords) {
-        // বিদ্যমান রেকর্ড থাকলে সেটি দিয়ে মার্জ করা
-        const localRecords = await localDb.sabakRecords.toArray();
-        const existing = localRecords
-          .filter((s: any) => String(s.studentId).trim() === String(record.studentId).trim())
-          .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-
-        const merged: any = {
-          id: existing?.id || sabakId,
-          studentId: record.studentId,
-          date: record.date,
-          sabak: record.sabak || existing?.sabak || existing?.newSabak || '',
-          saatSabak: record.saatSabak || existing?.saatSabak || existing?.sabki || '',
-          alMukhta: record.alMukhta || existing?.alMukhta || existing?.satpara || '',
-          sabina: record.sabina || existing?.sabina || '',
-          newSabak: record.sabak || existing?.sabak || existing?.newSabak || '',
-          sabki: record.saatSabak || existing?.saatSabak || existing?.sabki || '',
-          satpara: record.alMukhta || existing?.alMukhta || existing?.satpara || '',
-          grade: record.grade || existing?.grade || 'মুমতায',
-          remark: record.remark || existing?.remark || '',
-          synced: true,
-          createdAt: existing?.createdAt || nowIso,
-          updatedAt: nowIso,
-        };
-
-        await localDb.sabakRecords.put(merged);
-      }
+      await saveSabakRecord(record as any, sectionType);
     } catch (e) {
-      console.warn('Local sabak save warning:', e);
-    }
-
-    try {
-      await supabase.from('sabak_records').insert([{
-        student_id: record.studentId,
-        date: record.date,
-        new_sabak: record.sabak || record.newSabak,
-        sabki: record.saatSabak || record.sabki,
-        satpara: record.alMukhta || record.satpara,
-        sabina: record.sabina || null,
-        grade: record.grade,
-        remark: record.remark || null,
-        created_at: nowIso,
-      }]);
-    } catch (e) {
-      console.warn('Supabase sabak insert warning:', e);
+      console.warn('Save sabak record error:', e);
     }
 
     const sectionLabels: Record<HifzSectionType, string> = {

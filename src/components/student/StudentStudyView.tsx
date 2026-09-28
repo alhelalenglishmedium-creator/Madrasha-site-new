@@ -7,28 +7,15 @@ import { supabase } from '@/lib/supabaseClient';
 import { localDb } from '@/db/localDb';
 import type { Student } from '@/types/database.types';
 import { isHifzStudent } from '../teacher/SabakEntryModal';
+import { fetchLatestSabak, type SabakData } from '@/lib/sabakService';
 
 interface StudentStudyViewProps {
   student: Student;
 }
 
-interface SabakItem {
-  id?: string;
-  date: string;
-  sabak?: string;
-  saatSabak?: string;
-  alMukhta?: string;
-  sabina?: string;
-  newSabak: string;
-  sabki: string;
-  satpara: string;
-  grade: string;
-  remark?: string;
-}
-
 export const StudentStudyView: React.FC<StudentStudyViewProps> = ({ student }) => {
   const isHifz = isHifzStudent(student);
-  const [latestSabak, setLatestSabak] = useState<SabakItem | null>(null);
+  const [latestSabak, setLatestSabak] = useState<SabakData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -38,93 +25,13 @@ export const StudentStudyView: React.FC<StudentStudyViewProps> = ({ student }) =
       return;
     }
 
-    const fetchSabak = async () => {
+    const loadSabak = async () => {
       try {
         setLoading(true);
-        const candidateIds = Array.from(
-          new Set(
-            [
-              String(student.id || '').trim(),
-              String(student.admissionNo || '').trim(),
-              String((student as any).identifier || '').trim(),
-              String(student.rollNo || '').trim(),
-            ].filter(Boolean)
-          )
-        );
-
-        // ১. Supabase ক্লাউড থেকে সর্বশেষ সবক রেকর্ড লোড
-        try {
-          const { data, error } = await supabase
-            .from('sabak_records')
-            .select('*')
-            .in('student_id', candidateIds)
-            .order('date', { ascending: false })
-            .limit(1);
-
-          if (!error && data && data.length > 0) {
-            const r = data[0];
-            setLatestSabak({
-              id: r.id,
-              date: r.date,
-              sabak: r.sabak || r.new_sabak || r.newSabak || '',
-              saatSabak: r.saat_sabak || r.saatSabak || r.sabki || '',
-              alMukhta: r.al_mukhta || r.alMukhta || r.satpara || '',
-              sabina: r.sabina || '',
-              newSabak: r.sabak || r.new_sabak || r.newSabak || '',
-              sabki: r.saat_sabak || r.saatSabak || r.sabki || '',
-              satpara: r.al_mukhta || r.alMukhta || r.satpara || '',
-              grade: r.grade || 'মুমতায',
-              remark: r.remark || '',
-            });
-            return;
-          }
-        } catch (cloudErr) {
-          console.warn('Sabak cloud fetch warning:', cloudErr);
+        const data = await fetchLatestSabak(student);
+        if (data) {
+          setLatestSabak(data);
         }
-
-        // ২. লোকাল Dexie ব্যাকআপ থেকে লোড
-        try {
-          if (localDb.sabakRecords) {
-            const localRecords = await localDb.sabakRecords.toArray();
-            const matched = localRecords
-              .filter((s: any) => candidateIds.includes(String(s.studentId).trim()))
-              .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-            if (matched.length > 0) {
-              const r = matched[0];
-              setLatestSabak({
-                id: r.id,
-                date: r.date,
-                sabak: r.sabak || r.newSabak || '',
-                saatSabak: r.saatSabak || r.sabki || '',
-                alMukhta: r.alMukhta || r.satpara || '',
-                sabina: r.sabina || '',
-                newSabak: r.sabak || r.newSabak || '',
-                sabki: r.saatSabak || r.sabki || '',
-                satpara: r.alMukhta || r.satpara || '',
-                grade: r.grade || 'মুমতায',
-                remark: r.remark || '',
-              });
-              return;
-            }
-          }
-        } catch (localErr) {
-          console.warn('Sabak local fetch warning:', localErr);
-        }
-
-        // ফলব্যাক ডিফল্ট (শুধুমাত্র ডেমো হিফজ শিক্ষার্থীদের জন্য)
-        setLatestSabak({
-          date: new Date().toISOString().split('T')[0],
-          sabak: 'পারা ১৬ • পৃষ্ঠা ৩০৫',
-          saatSabak: 'পারা ১৫ • পৃষ্ঠা ২৯০ - ৩০৪',
-          alMukhta: 'পারা ১ থেকে পারা ৩ পর্যন্ত • পৃষ্ঠা ১ - ৬০',
-          sabina: 'পারা ১ থেকে পারা ৫ সম্পূর্ণ শুনানী',
-          newSabak: 'পারা ১৬ • পৃষ্ঠা ৩০৫',
-          sabki: 'পারা ১৫ • পৃষ্ঠা ২৯০ - ৩০৪',
-          satpara: 'পারা ১ থেকে পারা ৩ পর্যন্ত',
-          grade: 'মুমতায',
-          remark: 'মাশাআল্লাহ সন্তোষজনক অগ্রগতি',
-        });
       } catch (err) {
         console.error('সবক তথ্য লোড ত্রুটি:', err);
       } finally {
@@ -132,7 +39,20 @@ export const StudentStudyView: React.FC<StudentStudyViewProps> = ({ student }) =
       }
     };
 
-    fetchSabak();
+    loadSabak();
+
+    // শিক্ষক বা এডমিন যেকোনো স্থান থেকে সবক পরিবর্তন করলে তাৎক্ষণিক অটো-সিঙ্ক
+    const handleLiveSync = () => {
+      loadSabak();
+    };
+
+    window.addEventListener('sabak_updated', handleLiveSync);
+    window.addEventListener('storage', handleLiveSync);
+
+    return () => {
+      window.removeEventListener('sabak_updated', handleLiveSync);
+      window.removeEventListener('storage', handleLiveSync);
+    };
   }, [student, isHifz]);
 
   return (
