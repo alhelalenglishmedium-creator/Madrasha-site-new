@@ -175,9 +175,19 @@ export function StudentDashboard() {
           const rPhone = String(rec.phone || '').trim();
           const rEmail = String(rec.email || '').toLowerCase().trim();
 
+          const rRollClean = rRoll.replace(/\D/g, '');
+          const matchRoll = Boolean(
+            onlyDigits &&
+            rRollClean &&
+            (rRollClean === onlyDigits ||
+              rRollClean.padStart(2, '0') === onlyDigits.padStart(2, '0') ||
+              String(parseInt(rRollClean, 10)) === String(parseInt(onlyDigits, 10)))
+          );
+
           return (
             (authUserId && (rId === authUserId || rAdm === authUserId)) ||
             (cleanUid && (rId === cleanUid || rAdm === cleanUid || rRoll === cleanUid)) ||
+            matchRoll ||
             (onlyDigits && onlyDigits.length >= 3 && (rId.endsWith(onlyDigits) || rAdm.endsWith(onlyDigits))) ||
             (uPhone && rPhone === uPhone) ||
             (uEmail && rEmail === uEmail)
@@ -238,14 +248,31 @@ export function StudentDashboard() {
           setStudent(currentStudent);
         }
 
-        // ৩. ব্যাকগ্রাউন্ডে সাইলেন্টলি (Stale-While-Revalidate) শুধুমাত্র ১টি টার্গেটেড সুপাবেস ক্যোয়ারী
+        // ৩. ব্যাকগ্রাউন্ডে সাইলেন্টলি (Stale-While-Revalidate) মাল্টি-ফিল্ড সুপাবেস ক্যোয়ারী
         try {
           const queryVal = cleanUid || authUserId;
           if (queryVal) {
+            const rollClean = queryVal.replace(/\D/g, '');
+            const rollPadded = rollClean ? rollClean.padStart(2, '0') : '';
+            const rollRaw = rollClean ? String(parseInt(rollClean, 10)) : '';
+
+            const orConditions = [
+              `id.eq.${queryVal}`,
+              `admission_no.eq.${queryVal}`,
+              `roll.eq.${queryVal}`,
+              `roll_no.eq.${queryVal}`,
+            ];
+            if (rollPadded && rollPadded !== queryVal) {
+              orConditions.push(`roll.eq.${rollPadded}`, `roll_no.eq.${rollPadded}`);
+            }
+            if (rollRaw && rollRaw !== queryVal) {
+              orConditions.push(`roll.eq.${rollRaw}`, `roll_no.eq.${rollRaw}`);
+            }
+
             const { data: cloudStudent } = await supabase
               .from('students')
               .select('*')
-              .or(`id.eq.${queryVal},admission_no.eq.${queryVal}`)
+              .or(Array.from(new Set(orConditions)).join(','))
               .maybeSingle();
 
             if (cloudStudent) {

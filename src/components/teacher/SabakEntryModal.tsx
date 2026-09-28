@@ -256,6 +256,8 @@ export function SabakEntryModal({
       await onSaveSabak({
         id: currentRecord?.id,
         studentId: selectedStudentId,
+        rollNo: activeStudent?.rollNo,
+        admissionNo: activeStudent?.admissionNo,
         date,
         sabak: updatedSabak,
         saatSabak: updatedSaatSabak,
@@ -266,7 +268,7 @@ export function SabakEntryModal({
         satpara: updatedAlMukhta,
         grade,
         remark: remark.trim() || currentRecord?.remark || '',
-      }, activeSection);
+      } as any, activeSection);
 
       onClose();
     } catch (err: any) {
