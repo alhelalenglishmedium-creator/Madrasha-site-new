@@ -29,9 +29,6 @@ const PERIOD_OPTIONS = ['১ম পিরিয়ড', '২য় পিরিয়ড'
 
 function parseRoutineMeta(r: any) {
   let period = '১ম পিরিয়ড';
-  let cw = '';
-  let hw = '';
-  let dueDate = 'আগামীকাল';
   let room = '';
 
   if (r.room_no) {
@@ -39,9 +36,6 @@ function parseRoutineMeta(r: any) {
       try {
         const parsed = JSON.parse(r.room_no);
         period = parsed.period || period;
-        cw = parsed.cw || '';
-        hw = parsed.hw || '';
-        dueDate = parsed.dueDate || dueDate;
         room = parsed.room || '';
       } catch {
         room = r.room_no;
@@ -50,10 +44,10 @@ function parseRoutineMeta(r: any) {
       room = r.room_no;
     }
   }
-  return { ...r, period, cw, hw, dueDate, room };
+  return { ...r, period, room };
 }
 
-interface AdminRoutineModalProps {
+export interface AdminRoutineModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
@@ -69,10 +63,6 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
   const [isAddingCustomSubject, setIsAddingCustomSubject] = useState<boolean>(false);
   const [customSubjectInput, setCustomSubjectInput] = useState<string>('');
 
-  const [cw, setCw] = useState<string>('');
-  const [hw, setHw] = useState<string>('');
-  const [dueDate, setDueDate] = useState<string>('আগামীকাল');
-
   const [routines, setRoutines] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -80,7 +70,7 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
   const [startTime, setStartTime] = useState<string>('09:00 AM');
   const [endTime, setEndTime] = useState<string>('09:40 AM');
   const [teacherName, setTeacherName] = useState<string>('');
-  const [roomNo, setRoomNo] = useState<string>('');
+  const [roomNo, setRoomNo] = useState<string>('১০১');
 
   // প্রতিষ্ঠানের ধরন পরিবর্তন হলে শ্রেণি ও বিষয়সমূহ আপডেট
   const handleInstTypeChange = (type: InstitutionType) => {
@@ -154,9 +144,6 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
       setSaving(true);
       const meta = {
         period: selectedPeriod,
-        cw: cw.trim(),
-        hw: hw.trim(),
-        dueDate: dueDate.trim() || 'আগামীকাল',
         room: roomNo.trim() || '১০১',
         institution_type: selectedInstType,
       };
@@ -180,15 +167,13 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
 
       // Local storage backup
       const localKey = `madrasa_routine_${selectedClass}`;
-      const diaryKey = `school_class_diary_${selectedClass}`;
       const cached = localStorage.getItem(localKey);
       const currentArr = cached ? JSON.parse(cached) : [];
       const itemWithId = { ...newPeriod, id: finalId, ...meta };
       localStorage.setItem(localKey, JSON.stringify([...currentArr, itemWithId]));
-      localStorage.setItem(diaryKey, JSON.stringify([...currentArr, itemWithId]));
 
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('school_diary_updated'));
+        window.dispatchEvent(new Event('routine_updated'));
       }
 
       // অটো নেক্সট পিরিয়ড সিলেক্ট
@@ -196,8 +181,6 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
       if (nextIdx < PERIOD_OPTIONS.length) {
         setSelectedPeriod(PERIOD_OPTIONS[nextIdx]);
       }
-      setCw('');
-      setHw('');
       loadRoutines();
     } catch (err: any) {
       alert('রুটিন সেভ ত্রুটি: ' + err.message);
@@ -212,17 +195,15 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
       setRoutines((prev) => prev.filter((r) => r.id !== id));
 
       const localKey = `madrasa_routine_${selectedClass}`;
-      const diaryKey = `school_class_diary_${selectedClass}`;
       const cached = localStorage.getItem(localKey);
       if (cached) {
         const parsed = JSON.parse(cached);
         const updated = parsed.filter((r: any) => r.id !== id);
         localStorage.setItem(localKey, JSON.stringify(updated));
-        localStorage.setItem(diaryKey, JSON.stringify(updated));
       }
 
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('school_diary_updated'));
+        window.dispatchEvent(new Event('routine_updated'));
       }
     } catch {
       alert('মুছে ফেলা যায়নি');
@@ -242,8 +223,8 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
               <CalendarDays size={18} />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900 leading-tight">ক্লাস রুটিন ও ডিজিটাল ডায়েরি</h3>
-              <p className="text-[10.5px] text-slate-500 font-medium">পিরিয়ড, সময়সূচি, ক্লাসের পড়া ও বাড়ির কাজ নিয়ন্ত্রণ</p>
+              <h3 className="text-sm font-black text-slate-900 leading-tight">ক্লাস রুটিন তৈরি ও ব্যবস্থাপনা</h3>
+              <p className="text-[10.5px] text-slate-500 font-medium">পিরিয়ড, বিষয়, সময়সূচি ও কক্ষ নির্ধারণ</p>
             </div>
           </div>
           <button onClick={onClose} className="h-7 w-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition cursor-pointer">
@@ -305,13 +286,13 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
             </div>
           </div>
 
-          {/* ৩. নতুন পিরিয়ড ও ডায়েরি এন্ট্রি ফর্ম */}
+          {/* ৩. নতুন পিরিয়ড এন্ট্রি ফর্ম (শুধুমাত্র রুটিন) */}
           <form onSubmit={handleAddPeriod} className="bg-white p-3.5 rounded-2xl border border-emerald-100 shadow-2xs space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[11.5px] font-black text-[#008955]">
-                + নতুন পিরিয়ড ও ডায়েরি যুক্ত করুন
+                + নতুন পিরিয়ড যুক্ত করুন
               </span>
-              <span className="text-[10px] font-bold text-slate-400">
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
                 {selectedClass}
               </span>
             </div>
@@ -354,7 +335,7 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
               </div>
             </div>
 
-            {/* বিষয় নির্বাচন + প্লাস বাটন দিয়ে কাস্টম সাবজেক্ট যোগ */}
+            {/* বিষয় নির্বাচন + নতুন বিষয় যোগ */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-[10px] font-bold text-slate-700">বিষয় / সাবজেক্ট *</label>
@@ -400,85 +381,46 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
               )}
             </div>
 
-            {/* শ্রেণির পড়া ও বাড়ির কাজ (C.W. & H.W.) */}
-            <div className="space-y-1.5 bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80">
-              <div>
-                <label className="text-[9.5px] font-bold text-blue-700 block mb-0.5">
-                  শ্রেণির কাজ / পড়া (C.W. - ঐচ্ছিক)
-                </label>
+            {/* কক্ষ নম্বর ও শিক্ষক */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-1">
+                <label className="text-[9.5px] font-bold text-slate-500 block mb-0.5">কক্ষ / রুম নং</label>
                 <input
                   type="text"
-                  value={cw}
-                  onChange={(e) => setCw(e.target.value)}
-                  placeholder="যেমন: Noun ও Pronoun এর বিস্তারিত আলোচনা"
-                  className="w-full text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
+                  value={roomNo}
+                  onChange={(e) => setRoomNo(e.target.value)}
+                  placeholder="যেমন: ১০১"
+                  className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#008955]"
                 />
               </div>
 
-              <div>
-                <label className="text-[9.5px] font-bold text-amber-700 block mb-0.5">
-                  বাড়ির কাজ / হোমওয়ার্ক (H.W. - ঐচ্ছিক)
-                </label>
+              <div className="col-span-2">
+                <label className="text-[9.5px] font-bold text-slate-500 block mb-0.5">শিক্ষক / উস্তাদের নাম (ঐচ্ছিক)</label>
                 <input
                   type="text"
-                  value={hw}
-                  onChange={(e) => setHw(e.target.value)}
-                  placeholder="যেমন: Grammar Workbook পৃষ্ঠা ৪৫ এর Exercise A & B"
-                  className="w-full text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500"
+                  value={teacherName}
+                  onChange={(e) => setTeacherName(e.target.value)}
+                  placeholder="যেমন: উস্তাদ আব্দুর রহমান"
+                  className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#008955]"
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-0.5">
-                <div>
-                  <label className="text-[9px] font-bold text-slate-500 block mb-0.5">জমা দেওয়ার দিন</label>
-                  <input
-                    type="text"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    placeholder="আগামীকাল"
-                    className="w-full text-xs font-medium bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-slate-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] font-bold text-slate-500 block mb-0.5">কক্ষ / রুম নং</label>
-                  <input
-                    type="text"
-                    value={roomNo}
-                    onChange={(e) => setRoomNo(e.target.value)}
-                    placeholder="১০১"
-                    className="w-full text-xs font-medium bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-slate-400"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* উস্তাদ/শিক্ষকের নাম */}
-            <div>
-              <label className="text-[9.5px] font-bold text-slate-500 block mb-0.5">শিক্ষক/উস্তাদের নাম (ঐচ্ছিক)</label>
-              <input
-                type="text"
-                value={teacherName}
-                onChange={(e) => setTeacherName(e.target.value)}
-                placeholder="যেমন: উস্তাদ আব্দুর রহমান"
-                className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#008955]"
-              />
             </div>
 
             <button
               type="submit"
               disabled={saving}
-              className="w-full py-2.5 rounded-xl bg-[#008955] hover:bg-[#007548] text-white text-xs font-black shadow-xs transition active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-60 cursor-pointer"
+              className="w-full py-2.5 rounded-xl bg-[#008955] hover:bg-[#007548] text-white text-xs font-black shadow-xs transition active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-60 cursor-pointer mt-1"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={15} />}
-              <span>পিরিয়ড ও ডায়েরি সংরক্ষণ করুন</span>
+              <span>পিরিয়ড সংরক্ষণ করুন</span>
             </button>
           </form>
 
-          {/* ৪. বর্তমান ক্লাস রুটিন ও ডায়েরি তালিকা */}
+          {/* ৪. বর্তমান ক্লাস রুটিন তালিকা */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between px-1">
               <span className="text-[11px] font-black text-slate-800">
-                {selectedClass} • {selectedDay}-এর পিরিয়ড ({routines.length}টি)
+                {selectedClass} • {selectedDay}-এর রুটিন ({routines.length}টি পিরিয়ড)
               </span>
               <span className="text-[10px] text-slate-400 font-bold">
                 {selectedInstType === 'school' ? 'স্কুল' : selectedInstType === 'womens_madrasa' ? 'মহিলা মাদ্রাসা' : 'মাদ্রাসা'}
@@ -488,7 +430,7 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
             {loading ? (
               <div className="py-6 text-center text-xs text-slate-400">
                 <Loader2 size={18} className="animate-spin mx-auto text-[#008955] mb-1" />
-                <span>লোড হচ্ছে...</span>
+                <span>রুটিন লোড হচ্ছে...</span>
               </div>
             ) : routines.length > 0 ? (
               routines.map((r) => (
@@ -519,29 +461,11 @@ export function AdminRoutineModal({ isOpen, onClose }: AdminRoutineModalProps) {
                       <Trash2 size={13} />
                     </button>
                   </div>
-
-                  {(r.cw || r.hw) && (
-                    <div className="pt-1.5 border-t border-slate-100 text-[10.5px] space-y-1">
-                      {r.cw && (
-                        <p className="text-slate-600 flex items-start gap-1">
-                          <span className="font-bold text-blue-700 bg-blue-50 px-1 rounded text-[9px] shrink-0 font-sans">C.W.</span>
-                          <span>{r.cw}</span>
-                        </p>
-                      )}
-                      {r.hw && (
-                        <p className="text-slate-800 font-medium flex items-start gap-1">
-                          <span className="font-bold text-amber-800 bg-amber-100 px-1 rounded text-[9px] shrink-0 font-sans">H.W.</span>
-                          <span>{r.hw}</span>
-                          {r.dueDate && <span className="text-[9px] text-slate-400 ml-auto font-sans">(জমা: {r.dueDate})</span>}
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
               ))
             ) : (
               <div className="py-6 text-center text-xs text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
-                এই দিনে {selectedClass}-এর কোনো পিরিয়ড বা ডায়েরি যুক্ত করা হয়নি
+                এই দিনে {selectedClass}-এর কোনো রুটিন যুক্ত করা হয়নি
               </div>
             )}
           </div>
