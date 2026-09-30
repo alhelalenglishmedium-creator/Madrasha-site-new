@@ -736,7 +736,7 @@ export function StudentDashboard() {
           )}
 
           {/* ================= TAB ২: ফি ও রসিদ ================= */}
-          {activeTab === 'fees' && <StudentFeeTab student={displayStudent} />}
+          {activeTab === 'fees' && <StudentFeeTab student={displayStudent} isSchool={isSchool} />}
 
           {/* ================= TAB ৩: প্রফেশনাল একাডেমিক ফলাফল ================= */}
           {activeTab === 'results' && (
@@ -749,11 +749,22 @@ export function StudentDashboard() {
                   onClick={() => setResultSubView('latest')}
                   className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                     resultSubView === 'latest'
-                      ? 'bg-white text-emerald-800 shadow-sm'
+                      ? isSchool
+                        ? 'bg-white text-blue-900 shadow-sm'
+                        : 'bg-white text-emerald-800 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <GraduationCap size={15} className={resultSubView === 'latest' ? 'text-emerald-600' : 'text-slate-500'} />
+                  <GraduationCap
+                    size={15}
+                    className={
+                      resultSubView === 'latest'
+                        ? isSchool
+                          ? 'text-blue-600'
+                          : 'text-emerald-600'
+                        : 'text-slate-500'
+                    }
+                  />
                   <span>সর্বশেষ মূল্যায়ন</span>
                 </button>
 
@@ -762,11 +773,22 @@ export function StudentDashboard() {
                   onClick={() => setResultSubView('history')}
                   className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                     resultSubView === 'history'
-                      ? 'bg-white text-emerald-800 shadow-sm'
+                      ? isSchool
+                        ? 'bg-white text-blue-900 shadow-sm'
+                        : 'bg-white text-emerald-800 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <History size={14} className={resultSubView === 'history' ? 'text-emerald-600' : 'text-slate-500'} />
+                  <History
+                    size={14}
+                    className={
+                      resultSubView === 'history'
+                        ? isSchool
+                          ? 'text-blue-600'
+                          : 'text-emerald-600'
+                        : 'text-slate-500'
+                    }
+                  />
                   <span>বিগত পরীক্ষার রেকর্ড</span>
                 </button>
               </div>
@@ -833,16 +855,20 @@ export function StudentDashboard() {
                   </div>
 
                   <div className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden shadow-xs">
-                    <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 text-white p-4">
+                    <div className={`p-4 text-white ${
+                      isSchool
+                        ? 'bg-gradient-to-r from-[#1E3A8A] via-[#2563EB] to-indigo-700'
+                        : 'bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900'
+                    }`}>
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-[9px] font-bold uppercase tracking-wider bg-white/20 border border-white/25 px-2 py-0.5 rounded-md text-emerald-100">
+                          <span className="text-[9px] font-bold uppercase tracking-wider bg-white/20 border border-white/25 px-2 py-0.5 rounded-md text-white">
                             {currentDisplayedExam.isCurrent ? 'সর্বশেষ প্রকাশিত ফলাফল' : 'আর্কাইভ রেকর্ড'}
                           </span>
                           <h3 className="text-sm font-bold text-white mt-1.5">
-                            {displayStudent.fullNameBangla}
+                            {displayStudent.fullNameBangla || displayStudent.fullName}
                           </h3>
-                          <p className="text-[10px] text-emerald-100/90 font-sans mt-0.5">
+                          <p className="text-[10px] text-white/90 font-sans mt-0.5">
                             আইডি: {displayStudent.admissionNo || displayStudent.id} • রোল: {displayStudent.rollNo || '০১'}
                           </p>
                         </div>
@@ -881,7 +907,9 @@ export function StudentDashboard() {
                               </div>
 
                               <div className="shrink-0 font-sans font-bold text-slate-900 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-xl text-xs">
-                                <span className="text-emerald-700 font-extrabold">{toBengaliNumber(sub.obtainedMarks)}</span>
+                                <span className={`font-extrabold ${isSchool ? 'text-blue-700' : 'text-emerald-700'}`}>
+                                  {toBengaliNumber(sub.obtainedMarks)}
+                                </span>
                                 <span className="text-slate-400 text-[10px]"> / {toBengaliNumber(sub.totalMarks)}</span>
                               </div>
                             </div>
@@ -893,12 +921,16 @@ export function StudentDashboard() {
                         )}
                       </div>
 
-                      <div className="p-3 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 flex items-center justify-between text-xs">
+                      <div className={`p-3 rounded-2xl border flex items-center justify-between text-xs ${
+                        isSchool
+                          ? 'bg-blue-50/80 border-blue-200/80'
+                          : 'bg-emerald-50/80 border-emerald-200/80'
+                      }`}>
                         <div className="flex items-center gap-2">
-                          <Medal size={16} className="text-emerald-700" />
+                          <Medal size={16} className={isSchool ? 'text-blue-700' : 'text-emerald-700'} />
                           <span className="font-bold text-slate-800">সর্বমোট প্রাপ্ত নম্বর:</span>
                         </div>
-                        <span className="font-sans font-black text-sm text-emerald-800">
+                        <span className={`font-sans font-black text-sm ${isSchool ? 'text-blue-800' : 'text-emerald-800'}`}>
                           {toBengaliNumber(currentDisplayedExam.obtainedMarks)} / {toBengaliNumber(currentDisplayedExam.totalMarks)}
                         </span>
                       </div>
@@ -906,7 +938,9 @@ export function StudentDashboard() {
                       <button
                         type="button"
                         onClick={() => handleDownloadPdf(currentDisplayedExam)}
-                        className="w-full py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-xs cursor-pointer"
+                        className={`w-full py-2.5 rounded-xl ${
+                          isSchool ? 'bg-blue-700 hover:bg-blue-800' : 'bg-emerald-700 hover:bg-emerald-800'
+                        } text-white font-bold text-xs flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-xs cursor-pointer`}
                       >
                         <Download size={15} />
                         <span>অফিশিয়াল রেজাল্ট কার্ড (PDF)</span>
@@ -920,11 +954,8 @@ export function StudentDashboard() {
                     <Award size={30} />
                   </div>
                   <h3 className="text-sm font-bold text-slate-800 mt-2">
-                    এখনো কোনো ফলাফল প্রকাশিত হয়নি
+                    এখনো কোনো ফলাফল প্রকাশিত হয়নি
                   </h3>
-                  <p className="text-[11px] text-slate-500 max-w-xs mx-auto leading-relaxed">
-                    মাদ্রাসার অ্যাডমিন প্যানেল থেকে নম্বর এন্ট্রি সম্পন্ন হলে এই প্যানেলে আপনার বিস্তারিত মূল্যায়ন ও মেধা স্থান দেখা যাবে।
-                  </p>
                 </div>
               )}
             </div>
@@ -934,17 +965,30 @@ export function StudentDashboard() {
           {activeTab === 'notices' && (
             <div className="space-y-3 pb-2 animate-in fade-in duration-200">
               <div className="flex items-center justify-between px-1">
-                <h2 className="text-sm font-bold text-slate-900">মাদ্রাসার নোটিশ বোর্ড</h2>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                <h2 className="text-sm font-bold text-slate-900">
+                  {isSchool ? 'স্কুল নোটিশ বোর্ড' : 'মাদ্রাসার নোটিশ বোর্ড'}
+                </h2>
+                <span className={`text-[10px] font-bold ${
+                  isSchool
+                    ? 'text-blue-700 bg-blue-50 border-blue-200'
+                    : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                } px-2.5 py-0.5 rounded-full border`}>
                   {displayStudent.className}
                 </span>
               </div>
 
               {studentNoticesList.length > 0 ? (
                 studentNoticesList.map((notice) => (
-                  <div key={notice.id} className="bg-white rounded-2xl border-l-4 border-l-emerald-600 border-slate-200/80 p-3.5 space-y-1.5 shadow-xs">
+                  <div
+                    key={notice.id}
+                    className={`bg-white rounded-2xl border-l-4 ${
+                      isSchool ? 'border-l-blue-600' : 'border-l-emerald-600'
+                    } border-slate-200/80 p-3.5 space-y-1.5 shadow-xs`}
+                  >
                     <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      <span className={`font-bold px-2 py-0.5 rounded-full ${
+                        isSchool ? 'text-blue-800 bg-blue-100' : 'text-emerald-800 bg-emerald-100'
+                      }`}>
                         {notice.category || 'সাধারণ'}
                       </span>
                       <span className="text-slate-400 font-sans">{notice.date}</span>
@@ -965,7 +1009,7 @@ export function StudentDashboard() {
           )}
 
           {/* ================= TAB ৫: প্রোফাইল ================= */}
-          {activeTab === 'profile' && <StudentProfile student={displayStudent} onLogout={logout} />}
+          {activeTab === 'profile' && <StudentProfile student={displayStudent} onLogout={logout} isSchool={isSchool} />}
         </main>
 
         <StudentBottomNav activeTab={activeTab} setActiveTab={setActiveTab} isSchool={isSchool} />
@@ -991,8 +1035,12 @@ export function StudentDashboard() {
                   ক্লাস রুটিন ও সময়সূচি
                 </h2>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] font-bold text-[#008955] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    {displayStudent.className || 'সাধারণ'} বিভাগ
+                  <span className={`text-[10px] font-bold ${
+                    isSchool
+                      ? 'text-blue-700 bg-blue-50 border-blue-200'
+                      : 'text-[#008955] bg-emerald-50 border-emerald-200'
+                  } px-2 py-0.5 rounded-full border`}>
+                    {displayStudent.className || 'সাধারণ'} {isSchool ? 'শ্রেণি' : 'বিভাগ'}
                   </span>
                   <span className="text-[10px] text-slate-400 font-medium font-sans">• শিক্ষাবর্ষ ২০২৬</span>
                 </div>

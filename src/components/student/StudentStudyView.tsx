@@ -55,6 +55,23 @@ export const StudentStudyView: React.FC<StudentStudyViewProps> = ({ student }) =
     };
   }, [student, isHifz]);
 
+  const isSchool = React.useMemo(() => {
+    if (student?.institutionType === 'school') return true;
+    const cls = (student?.className || '').toLowerCase();
+    return (
+      cls.includes('class') ||
+      cls.includes('play') ||
+      cls.includes('nursery') ||
+      cls.includes('প্লে') ||
+      cls.includes('কেজি') ||
+      cls.includes('ওয়ান') ||
+      cls.includes('টু') ||
+      cls.includes('থ্রি') ||
+      cls.includes('ফোর') ||
+      cls.includes('ফাইভ')
+    );
+  }, [student?.institutionType, student?.className]);
+
   return (
     <div className="space-y-4">
       {/* দৈনিক সবক ও পাঠ্যসূচি হেডার */}
@@ -64,11 +81,13 @@ export const StudentStudyView: React.FC<StudentStudyViewProps> = ({ student }) =
             {isHifz ? 'হিফজুল কুরআন দৈনিক পাঠ ও রুটিন' : 'দৈনিক ক্লাস রুটিন ও পাঠ্যসূচি'}
           </h2>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            জামাত: <strong className="text-slate-700">{student.className}</strong>
+            {isSchool ? 'শ্রেণি / ক্লাস' : 'জামাত'}: <strong className="text-slate-700">{student.className}</strong>
             {student.section ? ` • শাখা-${student.section}` : ''}
           </p>
         </div>
-        <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-black shadow-2xs">
+        <span className={`px-2.5 py-1 ${
+          isSchool ? 'bg-blue-50 text-blue-800 border-blue-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+        } rounded-xl text-xs font-black shadow-2xs border`}>
           শিক্ষাবর্ষ ২০২৬
         </span>
       </div>

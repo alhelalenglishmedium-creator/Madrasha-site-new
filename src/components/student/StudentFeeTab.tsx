@@ -30,9 +30,10 @@ export interface FeeRecord {
 
 interface StudentFeeTabProps {
   student: Student;
+  isSchool?: boolean;
 }
 
-export function StudentFeeTab({ student }: StudentFeeTabProps) {
+export function StudentFeeTab({ student, isSchool: isSchoolProp }: StudentFeeTabProps) {
   const [feeRecords, setFeeRecords] = useState<FeeRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedReceipt, setSelectedReceipt] = useState<FeeRecord | null>(null);
@@ -227,7 +228,23 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
     });
   }, [feeRecords, currentMonthISO]);
 
-  const isSchool = student?.institutionType === 'school';
+  const isSchool = useMemo(() => {
+    if (typeof isSchoolProp === 'boolean') return isSchoolProp;
+    if (student?.institutionType === 'school') return true;
+    const cls = (student?.className || '').toLowerCase();
+    return (
+      cls.includes('class') ||
+      cls.includes('play') ||
+      cls.includes('nursery') ||
+      cls.includes('প্লে') ||
+      cls.includes('কেজি') ||
+      cls.includes('ওয়ান') ||
+      cls.includes('টু') ||
+      cls.includes('থ্রি') ||
+      cls.includes('ফোর') ||
+      cls.includes('ফাইভ')
+    );
+  }, [isSchoolProp, student?.institutionType, student?.className]);
 
   return (
     <div className="space-y-3.5 pb-24 font-['Noto_Sans_Bengali',sans-serif] animate-in fade-in duration-200">

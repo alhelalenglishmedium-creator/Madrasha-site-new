@@ -17,17 +17,41 @@ import { ImagePreviewModal } from '@/components/common/ImagePreviewModal';
 interface StudentProfileProps {
   student: Student;
   onLogout?: () => void;
+  isSchool?: boolean;
 }
 
-export const StudentProfile: React.FC<StudentProfileProps> = ({ student, onLogout }) => {
+export const StudentProfile: React.FC<StudentProfileProps> = ({
+  student,
+  onLogout,
+  isSchool: isSchoolProp,
+}) => {
   const [photoError, setPhotoError] = React.useState<boolean>(false);
   const [isPreviewOpen, setIsPreviewOpen] = React.useState<boolean>(false);
 
-  // নামের শুরুতে 'মুহাম্মাদ' নিশ্চিত করার লজিক
+  const isSchool = useMemo(() => {
+    if (typeof isSchoolProp === 'boolean') return isSchoolProp;
+    if (student?.institutionType === 'school') return true;
+    const cls = (student?.className || '').toLowerCase();
+    return (
+      cls.includes('class') ||
+      cls.includes('play') ||
+      cls.includes('nursery') ||
+      cls.includes('প্লে') ||
+      cls.includes('কেজি') ||
+      cls.includes('ওয়ান') ||
+      cls.includes('টু') ||
+      cls.includes('থ্রি') ||
+      cls.includes('ফোর') ||
+      cls.includes('ফাইভ')
+    );
+  }, [isSchoolProp, student?.institutionType, student?.className]);
+
+  // নামের শুরুতে 'মুহাম্মাদ' শুধুমাত্র মাদ্রাসার জন্য প্রযোজ্য হলে দেওয়া হবে, স্কুলে সরাসরি শিক্ষার্থীর নাম
   const formattedName = useMemo(() => {
-    const raw = student.fullNameBangla || student.fullName || 'আব্দুল্লাহ মাহমুদ';
+    const raw = student.fullNameBangla || student.fullName || 'শিক্ষার্থী';
+    if (isSchool) return raw;
     return raw.startsWith('মুহাম্মাদ') || raw.startsWith('মোহাম্মদ') ? raw : `মুহাম্মাদ ${raw}`;
-  }, [student]);
+  }, [student, isSchool]);
 
   // ফটো অ্যাভাটার বা আদ্যক্ষর
   const avatarLetter = useMemo(() => {
@@ -48,40 +72,56 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, onLogou
           <h2 className="text-sm font-bold text-slate-900">ডিজিটাল স্মার্ট আইডি ও প্রোফাইল</h2>
           <p className="text-[10px] text-slate-500">শিক্ষার্থীর অফিশিয়াল পরিচিতিপত্র</p>
         </div>
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300/60 shadow-2xs">
-          <ShieldCheck className="w-3 h-3 text-emerald-600" /> ভেরিফাইড
+        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+          isSchool
+            ? 'bg-blue-100 text-blue-800 border-blue-300/60'
+            : 'bg-emerald-100 text-emerald-800 border-emerald-300/60'
+        } border shadow-2xs`}>
+          <ShieldCheck className={`w-3 h-3 ${isSchool ? 'text-blue-600' : 'text-emerald-600'}`} /> ভেরিফাইড
         </span>
       </div>
 
       {/* ================= ১. ডিজিটাল স্মার্ট আইডি কার্ড ================= */}
-      <div className="relative overflow-hidden rounded-[26px] bg-white border border-slate-200/80 shadow-md shadow-emerald-950/5 p-4 space-y-3.5">
+      <div className="relative overflow-hidden rounded-[26px] bg-white border border-slate-200/80 shadow-md p-4 space-y-3.5">
         
         {/* কার্ড ব্যাকগ্রাউন্ড সফট গ্লো */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-emerald-500/10 via-teal-500/5 to-transparent rounded-full -mr-8 -mt-8 pointer-events-none" />
+        <div className={`absolute top-0 right-0 w-32 h-32 rounded-full -mr-8 -mt-8 pointer-events-none ${
+          isSchool ? 'bg-gradient-to-bl from-blue-500/10 via-indigo-500/5 to-transparent' : 'bg-gradient-to-bl from-emerald-500/10 via-teal-500/5 to-transparent'
+        }`} />
 
-        {/* কার্ড হেডার (মাদ্রাসার নাম ডুপ্লিকেট না করে শুধু স্মার্ট কার্ড হেডার) */}
+        {/* কার্ড হেডার */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-[#008955] text-white flex items-center justify-center font-bold text-[10px] shadow-xs">
-              DU
+            <div className={`h-7 w-7 rounded-lg ${
+              isSchool ? 'bg-blue-600 text-white' : 'bg-[#008955] text-white'
+            } flex items-center justify-center font-bold text-[10px] shadow-xs`}>
+              {isSchool ? 'AHEM' : 'DU'}
             </div>
-            <span className="text-[11px] font-extrabold text-[#008955] tracking-wider uppercase">
-              STUDENT SMART CARD
+            <span className={`text-[11px] font-extrabold tracking-wider uppercase ${
+              isSchool ? 'text-blue-700' : 'text-[#008955]'
+            }`}>
+              {isSchool ? 'SCHOOL SMART CARD' : 'STUDENT SMART CARD'}
             </span>
           </div>
-          <span className="text-[9.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-2 py-0.5 rounded-full">
+          <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full border ${
+            isSchool ? 'bg-blue-50 text-blue-800 border-blue-200/80' : 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
+          }`}>
             সক্রিয় ২০২৬
           </span>
         </div>
 
         {/* শিক্ষার্থী ছবি ও প্রধান তথ্য */}
         <div className="flex items-center gap-3.5">
-          {/* ফটো স্লট (ছবি থাকলে ছবি, না থাকলে সুন্দর অবতার) */}
+          {/* ফটো স্লট */}
           <div
             onClick={() => {
               if (studentPhoto) setIsPreviewOpen(true);
             }}
-            className="h-20 w-20 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-emerald-400 p-0.5 shadow-md shadow-emerald-600/15 shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition"
+            className={`h-20 w-20 rounded-2xl p-0.5 shadow-md shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition ${
+              isSchool
+                ? 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 shadow-blue-600/15'
+                : 'bg-gradient-to-tr from-emerald-600 via-teal-600 to-emerald-400 shadow-emerald-600/15'
+            }`}
             title="ছবি সম্পূর্ণ দেখতে ক্লিক করুন"
           >
             {studentPhoto && !photoError ? (
@@ -92,7 +132,9 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, onLogou
                 onError={() => setPhotoError(true)}
               />
             ) : (
-              <div className="w-full h-full bg-[#E7F6ED] rounded-[14px] flex items-center justify-center text-2xl font-black text-[#008955]">
+              <div className={`w-full h-full rounded-[14px] flex items-center justify-center text-2xl font-black ${
+                isSchool ? 'bg-blue-50 text-blue-700' : 'bg-[#E7F6ED] text-[#008955]'
+              }`}>
                 {avatarLetter}
               </div>
             )}
@@ -103,15 +145,18 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, onLogou
               {formattedName}
             </h4>
             
-            {/* কোনো অতিরিক্ত ADM আইডি নেই, সরাসরি সিরিয়াল নম্বর */}
             <div className="flex items-center gap-1.5 pt-0.5">
-              <span className="font-bold text-[11px] text-[#008955] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200/60 inline-block">
-                সিরিয়াল: {student.rollNo || '০১'}
+              <span className={`font-bold text-[11px] px-2.5 py-0.5 rounded-md border inline-block ${
+                isSchool
+                  ? 'text-blue-700 bg-blue-50 border-blue-200/60'
+                  : 'text-[#008955] bg-emerald-50 border-emerald-200/60'
+              }`}>
+                {isSchool ? 'রোল' : 'সিরিয়াল'}: {student.rollNo || '০১'}
               </span>
             </div>
             
             <p className="text-[11px] text-slate-600 font-medium truncate pt-0.5">
-              বিভাগ: <span className="font-bold text-slate-800">{student.className || 'হিফজুল কুরআন'}</span>
+              {isSchool ? 'শ্রেণি / ক্লাস' : 'বিভাগ'}: <span className="font-bold text-slate-800">{student.className || (isSchool ? 'Play' : 'হিফজুল কুরআন')}</span>
             </p>
             
             <p className="text-[10px] text-slate-400">
@@ -124,7 +169,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, onLogou
         <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
           <div className="space-y-0.5">
             <p className="text-slate-500 flex items-center gap-1">
-              <User className="w-3 h-3 text-slate-400" /> অভিভাবক: <span className="font-bold text-slate-700">{student.fatherName || 'মাওলানা আব্দুর রহমান'}</span>
+              <User className="w-3 h-3 text-slate-400" /> অভিভাবক: <span className="font-bold text-slate-700">{student.fatherName || 'তথ্য নেই'}</span>
             </p>
             <p className="text-slate-500 flex items-center gap-1">
               <Phone className="w-3 h-3 text-slate-400" /> ফোন: <span className="font-bold font-sans text-slate-700">{student.phone || '01712-345678'}</span>
@@ -204,22 +249,36 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, onLogou
         <div className="space-y-2.5">
           
           {/* ১. মাসিক ফি কার্ড (প্রধান হাইলাইট ও বড় কার্ড) */}
-          <div className="bg-gradient-to-r from-emerald-50 via-teal-50/70 to-white rounded-2xl border border-emerald-200/80 p-3.5 shadow-xs flex items-center justify-between">
+          <div className={`${
+            isSchool
+              ? 'bg-gradient-to-r from-blue-50 via-indigo-50/70 to-white border-blue-200/80'
+              : 'bg-gradient-to-r from-emerald-50 via-teal-50/70 to-white border-emerald-200/80'
+          } rounded-2xl border p-3.5 shadow-xs flex items-center justify-between`}>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#008955] to-teal-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
+              <div className={`h-10 w-10 rounded-xl ${
+                isSchool
+                  ? 'bg-gradient-to-br from-blue-600 to-indigo-600 shadow-blue-600/20'
+                  : 'bg-gradient-to-br from-[#008955] to-teal-600 shadow-emerald-600/20'
+              } text-white flex items-center justify-center shrink-0 shadow-md`}>
                 <Wallet className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[10.5px] text-emerald-800 block font-bold">নির্ধারিত মাসিক ফি</span>
-                <span className="text-[11px] text-slate-500 font-medium">খোরাকি ও সাধারণ বেতন</span>
+                <span className={`text-[10.5px] ${isSchool ? 'text-blue-800' : 'text-emerald-800'} block font-bold`}>
+                  {isSchool ? 'নির্ধারিত টিউশন ফি' : 'নির্ধারিত মাসিক ফি'}
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  {isSchool ? 'স্কুল টিউশন ও সেশন চার্জ' : 'খোরাকি ও সাধারণ বেতন'}
+                </span>
               </div>
             </div>
 
             <div className="text-right">
-              <span className="text-lg font-black text-[#008955] font-sans block">
-                ৳ {Number(student.monthlyFee || 1500).toLocaleString('en-US')}
+              <span className={`text-lg font-black ${isSchool ? 'text-blue-700' : 'text-[#008955]'} font-sans block`}>
+                ৳ {Number(student.monthlyFee || 1000).toLocaleString('en-US')}
               </span>
-              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.2 rounded-md">
+              <span className={`text-[9px] font-bold ${
+                isSchool ? 'text-blue-700 bg-blue-100/80' : 'text-emerald-700 bg-emerald-100/80'
+              } px-2 py-0.2 rounded-md`}>
                 নিয়মিত
               </span>
             </div>

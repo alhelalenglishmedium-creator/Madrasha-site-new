@@ -42,9 +42,10 @@ export interface SalaryRecord {
 
 interface TeacherProfileProps {
   teacher?: Staff | null;
+  isSchool?: boolean;
 }
 
-export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps) {
+export function TeacherProfile({ teacher: initialTeacher, isSchool: isSchoolProp }: TeacherProfileProps) {
   const { user, logout } = useAuth();
   const [teacher, setTeacher] = useState<Staff | null>(() => {
     if (initialTeacher) return initialTeacher;
@@ -58,6 +59,26 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
     }
     return null;
   });
+
+  const isSchool = useMemo(() => {
+    if (typeof isSchoolProp === 'boolean') return isSchoolProp;
+    const t = teacher || initialTeacher;
+    if ((t as any)?.institutionType === 'school' || (t as any)?.institution_type === 'school') return true;
+    const cls = (t?.assignedClass || '').toLowerCase();
+    return (
+      cls.includes('class') ||
+      cls.includes('play') ||
+      cls.includes('nursery') ||
+      cls.includes('প্লে') ||
+      cls.includes('কেজি') ||
+      cls.includes('ওয়ান') ||
+      cls.includes('টু') ||
+      cls.includes('থ্রি') ||
+      cls.includes('ফোর') ||
+      cls.includes('ফাইভ') ||
+      cls.includes('standard')
+    );
+  }, [isSchoolProp, teacher, initialTeacher]);
   const [salaryHistory, setSalaryHistory] = useState<SalaryRecord[]>([]);
   const [assignedStudents, setAssignedStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(!initialTeacher && !teacher);
@@ -406,16 +427,20 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
               <span>দায়িত্বপ্রাপ্ত শ্রেণি</span>
             </div>
             <span className="font-bold text-slate-800">
-              {teacher?.assignedClass ? `${teacher.assignedClass} বিভাগ` : 'হিফজ বিভাগ'}
+              {teacher?.assignedClass
+                ? `${teacher.assignedClass} ${isSchool ? 'শ্রেণি / ক্লাস' : 'বিভাগ'}`
+                : isSchool
+                ? 'জেনারেল শিক্ষক'
+                : 'হিফজ বিভাগ'}
             </span>
           </div>
 
           <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
             <div className="flex items-center gap-2 text-slate-500">
-              <Wallet size={14} className="text-[#008955]" />
-              <span>নির্ধারিত মাসিক হাদিয়া</span>
+              <Wallet size={14} className={isSchool ? 'text-blue-600' : 'text-[#008955]'} />
+              <span>{isSchool ? 'নির্ধারিত মাসিক বেতন' : 'নির্ধারিত মাসিক হাদিয়া'}</span>
             </div>
-            <span className="font-black text-[#008955] font-sans">
+            <span className={`font-black font-sans ${isSchool ? 'text-blue-700' : 'text-[#008955]'}`}>
               ৳ {Number(teacher?.monthlySalary || 0).toLocaleString('en-US')}
             </span>
           </div>
@@ -423,7 +448,7 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
           {teacher?.joiningDate && (
             <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
               <div className="flex items-center gap-2 text-slate-500">
-                <Calendar size={14} className="text-[#008955]" />
+                <Calendar size={14} className={isSchool ? 'text-blue-600' : 'text-[#008955]'} />
                 <span>যোগদানের তারিখ</span>
               </div>
               <span className="font-bold text-slate-800 font-sans">
@@ -435,7 +460,7 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
           {teacher?.email && (
             <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
               <div className="flex items-center gap-2 text-slate-500">
-                <Mail size={14} className="text-[#008955]" />
+                <Mail size={14} className={isSchool ? 'text-blue-600' : 'text-[#008955]'} />
                 <span>ইমেইল</span>
               </div>
               <span className="font-medium text-slate-700 font-sans truncate max-w-[180px]">
@@ -447,11 +472,13 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
       </div>
 
       {/* ৩. হাদিয়া ও পেমেন্ট হিস্ট্রি সেকশন */}
-      <div className="rounded-2xl border border-[#DFECE5] bg-white p-4 shadow-2xs space-y-3">
+      <div className={`rounded-2xl border bg-white p-4 shadow-2xs space-y-3 ${
+        isSchool ? 'border-blue-100' : 'border-[#DFECE5]'
+      }`}>
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
           <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-            <FileText size={15} className="text-[#008955]" />
-            <span>হাদিয়া ও পেমেন্ট হিস্ট্রি</span>
+            <FileText size={15} className={isSchool ? 'text-blue-600' : 'text-[#008955]'} />
+            <span>{isSchool ? 'বেতন ও পেমেন্ট হিস্ট্রি' : 'হাদিয়া ও পেমেন্ট হিস্ট্রি'}</span>
           </h3>
           <span className="text-[10px] text-slate-400 font-sans">
             মোট {salaryHistory.length} টি রেকর্ড
@@ -464,15 +491,19 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
               <div
                 key={rec.id}
                 onClick={() => setSelectedReceipt(rec)}
-                className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between hover:border-[#008955] active:scale-[0.99] transition cursor-pointer"
+                className={`p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between hover:border-${
+                  isSchool ? 'blue-400' : '[#008955]'
+                } active:scale-[0.99] transition cursor-pointer`}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="h-9 w-9 rounded-xl bg-[#E7F6ED] text-[#008955] flex items-center justify-center shrink-0">
+                  <div className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${
+                    isSchool ? 'bg-blue-50 text-blue-700' : 'bg-[#E7F6ED] text-[#008955]'
+                  }`}>
                     <Receipt size={16} />
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 leading-tight">
-                      {rec.month} মাসের হাদিয়া
+                      {rec.month} মাসের {isSchool ? 'বেতন' : 'হাদিয়া'}
                     </h4>
                     <p className="text-[10px] text-slate-400 font-sans mt-0.5">
                       {rec.paymentDate} • {rec.paymentMethod}
@@ -481,10 +512,16 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
                 </div>
 
                 <div className="text-right">
-                  <span className="text-xs font-black text-[#008955] font-sans block">
+                  <span className={`text-xs font-black font-sans block ${
+                    isSchool ? 'text-blue-700' : 'text-[#008955]'
+                  }`}>
                     +৳ {rec.amount.toLocaleString('en-US')}
                   </span>
-                  <span className="text-[9px] font-bold text-emerald-700">রসিদ দেখুন</span>
+                  <span className={`text-[9px] font-bold ${
+                    isSchool ? 'text-blue-700' : 'text-emerald-700'
+                  }`}>
+                    রসিদ দেখুন
+                  </span>
                 </div>
               </div>
             ))}
@@ -492,9 +529,11 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
         ) : (
           <div className="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-center">
             <Receipt size={22} className="mx-auto text-slate-300" />
-            <p className="text-xs font-bold text-slate-600 mt-1">কোনো হাদিয়ার রেকর্ড পাওয়া যায়নি</p>
+            <p className="text-xs font-bold text-slate-600 mt-1">
+              কোনো {isSchool ? 'বেতনের' : 'হাদিয়ার'} রেকর্ড পাওয়া যায়নি
+            </p>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              অ্যাডমিন থেকে হাদিয়া প্রদান করা হলে এখানে প্রদর্শিত হবে।
+              অ্যাডমিন থেকে {isSchool ? 'বেতন' : 'হাদিয়া'} প্রদান করা হলে এখানে প্রদর্শিত হবে।
             </p>
           </div>
         )}
@@ -581,27 +620,37 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-[360px] rounded-3xl bg-white p-5 shadow-2xl border border-emerald-300 text-slate-800"
+            className={`relative w-full max-w-[360px] rounded-3xl bg-white p-5 shadow-2xl border text-slate-800 ${
+              isSchool ? 'border-blue-300' : 'border-emerald-300'
+            }`}
           >
-            <div className="text-center pb-3 border-b border-dashed border-emerald-200">
+            <div className={`text-center pb-3 border-b border-dashed ${isSchool ? 'border-blue-200' : 'border-emerald-200'}`}>
               <div className="flex items-center justify-between no-print mb-1">
-                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  isSchool ? 'text-blue-800 bg-blue-50 border-blue-200' : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                }`}>
                   শিক্ষক কপি
                 </span>
                 <button
                   onClick={() => setSelectedReceipt(null)}
-                  className="h-7 w-7 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center"
+                  className="h-7 w-7 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center cursor-pointer"
                 >
                   <X size={15} />
                 </button>
               </div>
 
-              <div className="h-10 w-10 mx-auto rounded-2xl bg-[#E7F6ED] text-[#008955] flex items-center justify-center mb-1 shadow-2xs">
+              <div className={`h-10 w-10 mx-auto rounded-2xl flex items-center justify-center mb-1 shadow-2xs ${
+                isSchool ? 'bg-blue-50 text-blue-700' : 'bg-[#E7F6ED] text-[#008955]'
+              }`}>
                 <ShieldCheck size={24} />
               </div>
-              <h2 className="text-sm font-black text-slate-900 leading-snug text-center">মাদ্রাসায়ে ইসলামিয়া দারুল উলুম, কোম্পানিগঞ্জ।</h2>
-              <p className="text-[10px] text-[#008955] font-bold tracking-wide mt-0.5">
-                শিক্ষক হাদিয়া ও বেতন পরিশোধ ভাউচার
+              <h2 className="text-sm font-black text-slate-900 leading-snug text-center">
+                {isSchool ? 'আল হেলাল ইংলিশ মিডিয়াম ইসলামিক স্কুল' : 'মাদ্রাসায়ে ইসলামিয়া দারুল উলুম, কোম্পানিগঞ্জ।'}
+              </h2>
+              <p className={`text-[10px] font-bold tracking-wide mt-0.5 ${
+                isSchool ? 'text-blue-700' : 'text-[#008955]'
+              }`}>
+                {isSchool ? 'শিক্ষক বেতন পরিশোধ ভাউচার' : 'শিক্ষক হাদিয়া ও বেতন পরিশোধ ভাউচার'}
               </p>
               <p className="text-[9px] text-slate-400 font-mono mt-0.5">
                 ভাউচার নং: {selectedReceipt.id}
@@ -611,14 +660,14 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
             <div className="py-3 space-y-2 text-xs">
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
                 <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-slate-500">ওস্তাদের নাম:</span>
+                  <span className="text-slate-500">{isSchool ? 'শিক্ষকের নাম:' : 'ওস্তাদের নাম:'}</span>
                   <span className="font-bold text-slate-900">
                     {teacher?.fullName || user?.name || 'মুহতারাম শিক্ষক'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[11px]">
                   <span className="text-slate-500">পদবী:</span>
-                  <span className="font-bold text-[#008955]">
+                  <span className={`font-bold ${isSchool ? 'text-blue-700' : 'text-[#008955]'}`}>
                     {teacher?.designation || 'শিক্ষক'}
                   </span>
                 </div>
@@ -626,7 +675,7 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
 
               <div className="space-y-1.5 pt-1 text-[11px]">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500">হাদিয়ার মাস:</span>
+                  <span className="text-slate-500">{isSchool ? 'বেতনের মাস:' : 'হাদিয়ার মাস:'}</span>
                   <span className="font-bold text-slate-800">{selectedReceipt.month}</span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -639,7 +688,9 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500">পেমেন্ট মাধ্যম:</span>
-                  <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                  <span className={`font-bold px-2 py-0.5 rounded border ${
+                    isSchool ? 'text-blue-800 bg-blue-50 border-blue-100' : 'text-emerald-800 bg-emerald-50 border-emerald-100'
+                  }`}>
                     {selectedReceipt.paymentMethod}
                   </span>
                 </div>
@@ -654,9 +705,15 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
                 </div>
               )}
 
-              <div className="my-2.5 p-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-[#E7F6ED] border border-emerald-300 text-center">
-                <span className="text-[10px] font-bold text-[#008955] block">পরিশোধিত হাদিয়ার পরিমাণ</span>
-                <p className="text-2xl font-black text-[#008955] font-sans mt-0.5">
+              <div className={`my-2.5 p-3 rounded-2xl border text-center ${
+                isSchool
+                  ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300'
+                  : 'bg-gradient-to-r from-emerald-50 to-[#E7F6ED] border-emerald-300'
+              }`}>
+                <span className={`text-[10px] font-bold block ${isSchool ? 'text-blue-700' : 'text-[#008955]'}`}>
+                  পরিশোধিত {isSchool ? 'বেতনের' : 'হাদিয়ার'} পরিমাণ
+                </span>
+                <p className={`text-2xl font-black font-sans mt-0.5 ${isSchool ? 'text-blue-700' : 'text-[#008955]'}`}>
                   ৳ {selectedReceipt.amount.toLocaleString('en-US')}
                 </p>
                 <span className="text-[9px] font-bold text-slate-500">স্ট্যাটাস: পরিশোধ সম্পন্ন (PAID)</span>
@@ -667,7 +724,7 @@ export function TeacherProfile({ teacher: initialTeacher }: TeacherProfileProps)
               <div className="flex justify-between items-end pb-3 text-[9px] text-slate-400">
                 <div className="text-center">
                   <div className="w-20 border-b border-slate-300 mb-1"></div>
-                  <span>মুহতামিম স্বাক্ষর</span>
+                  <span>{isSchool ? 'প্রিন্সিপাল স্বাক্ষর' : 'মুহতামিম স্বাক্ষর'}</span>
                 </div>
                 <div className="text-center">
                   <div className="w-20 border-b border-slate-300 mb-1"></div>

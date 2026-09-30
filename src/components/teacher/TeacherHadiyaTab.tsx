@@ -32,14 +32,35 @@ export interface SalaryRecord {
 
 interface TeacherHadiyaTabProps {
   teacher?: Staff | null;
+  isSchool?: boolean;
 }
 
-export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps) {
+export function TeacherHadiyaTab({ teacher: propTeacher, isSchool: isSchoolProp }: TeacherHadiyaTabProps) {
   const { user } = useAuth();
   const [currentTeacher, setCurrentTeacher] = useState<Staff | null>(propTeacher || null);
   const [salaries, setSalaries] = useState<SalaryRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedReceipt, setSelectedReceipt] = useState<SalaryRecord | null>(null);
+
+  const isSchool = useMemo(() => {
+    if (typeof isSchoolProp === 'boolean') return isSchoolProp;
+    const t = currentTeacher || propTeacher;
+    if ((t as any)?.institutionType === 'school' || (t as any)?.institution_type === 'school') return true;
+    const cls = (t?.assignedClass || '').toLowerCase();
+    return (
+      cls.includes('class') ||
+      cls.includes('play') ||
+      cls.includes('nursery') ||
+      cls.includes('প্লে') ||
+      cls.includes('কেজি') ||
+      cls.includes('ওয়ান') ||
+      cls.includes('টু') ||
+      cls.includes('থ্রি') ||
+      cls.includes('ফোর') ||
+      cls.includes('ফাইভ') ||
+      cls.includes('standard')
+    );
+  }, [isSchoolProp, currentTeacher, propTeacher]);
 
   const currentMonthISO = useMemo(() => new Date().toISOString().slice(0, 7), []);
 
@@ -224,12 +245,16 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
   return (
     <div className="space-y-4 font-hind pb-24 animate-in fade-in duration-200">
       {/* ১. ধার্যকৃত হাদিয়া ও স্ট্যাটাস কার্ড */}
-      <div className="relative rounded-3xl bg-gradient-to-tr from-[#008955] via-[#007a4c] to-[#04633e] p-5 text-white shadow-xs">
+      <div className={`relative rounded-3xl p-5 text-white shadow-xs ${
+        isSchool
+          ? 'bg-gradient-to-tr from-[#0F172A] via-[#1E3A8A] to-[#2563EB]'
+          : 'bg-gradient-to-tr from-[#008955] via-[#007a4c] to-[#04633e]'
+      }`}>
         <div className="flex items-start justify-between">
           <div>
-            <span className="text-[11px] font-bold text-emerald-200 flex items-center gap-1.5">
+            <span className={`text-[11px] font-bold flex items-center gap-1.5 ${isSchool ? 'text-blue-200' : 'text-emerald-200'}`}>
               <Wallet size={14} />
-              <span>নির্ধারিত মাসিক হাদিয়া</span>
+              <span>{isSchool ? 'নির্ধারিত মাসিক বেতন' : 'নির্ধারিত মাসিক হাদিয়া'}</span>
             </span>
             <p className="text-3xl font-black font-sans tracking-tight mt-1.5">
               ৳ {Number(monthlySalaryRate).toLocaleString('en-US')}
@@ -237,8 +262,12 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
           </div>
 
           {currentMonthPayment ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 border border-emerald-300/40 px-3 py-1 text-xs font-bold text-emerald-100 shadow-inner">
-              <BadgeCheck size={14} className="text-emerald-300" />
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold shadow-inner ${
+              isSchool
+                ? 'bg-blue-400/20 border border-blue-300/40 text-blue-100'
+                : 'bg-emerald-400/20 border border-emerald-300/40 text-emerald-100'
+            }`}>
+              <BadgeCheck size={14} className={isSchool ? 'text-blue-300' : 'text-emerald-300'} />
               <span>পরিশোধ সম্পন্ন</span>
             </span>
           ) : (
@@ -249,17 +278,19 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
           )}
         </div>
 
-        <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-[11px] text-emerald-100">
+        <div className={`mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-[11px] ${
+          isSchool ? 'text-blue-100' : 'text-emerald-100'
+        }`}>
           <span className="flex items-center gap-1">
             {currentMonthPayment ? (
               <>
-                <CheckCircle2 size={13} className="text-emerald-300" />
-                <span>চলতি মাসের হাদিয়া পরিশোধিত</span>
+                <CheckCircle2 size={13} className={isSchool ? 'text-blue-300' : 'text-emerald-300'} />
+                <span>চলতি মাসের {isSchool ? 'বেতন' : 'হাদিয়া'} পরিশোধিত</span>
               </>
             ) : (
               <>
                 <AlertCircle size={13} className="text-amber-300" />
-                <span>চলতি মাসের হাদিয়া এখনো ইস্যু করা হয়নি</span>
+                <span>চলতি মাসের {isSchool ? 'বেতন' : 'হাদিয়া'} এখনো ইস্যু করা হয়নি</span>
               </>
             )}
           </span>
@@ -270,12 +301,12 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
         </div>
       </div>
 
-      {/* ২. হাদিয়া গ্রহণের ইতিহাস ও রশিদ তালিকা */}
+      {/* ২. হাদিয়া/বেতন গ্রহণের ইতিহাস ও রশিদ তালিকা */}
       <div className="space-y-2.5 pt-1">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-            <FileText size={15} className="text-[#008955]" />
-            <span>হাদিয়া গ্রহণের ইতিহাস ও রশিদ</span>
+            <FileText size={15} className={isSchool ? 'text-blue-600' : 'text-[#008955]'} />
+            <span>{isSchool ? 'বেতন গ্রহণের ইতিহাস ও রশিদ' : 'হাদিয়া গ্রহণের ইতিহাস ও রশিদ'}</span>
           </h3>
           <span className="text-[10px] text-slate-400 font-sans">
             মোট {salaries.length} টি রেকর্ড
@@ -284,37 +315,55 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
 
         {isLoading ? (
           <div className="py-12 text-center">
-            <div className="mx-auto h-7 w-7 animate-spin rounded-full border-3 border-[#008955] border-t-transparent"></div>
-            <p className="mt-2 text-xs font-medium text-slate-400">হাদিয়ার বিবরণ লোড হচ্ছে...</p>
+            <div className={`mx-auto h-7 w-7 animate-spin rounded-full border-3 ${
+              isSchool ? 'border-blue-600' : 'border-[#008955]'
+            } border-t-transparent`}></div>
+            <p className="mt-2 text-xs font-medium text-slate-400">
+              {isSchool ? 'বেতনের বিবরণ লোড হচ্ছে...' : 'হাদিয়ার বিবরণ লোড হচ্ছে...'}
+            </p>
           </div>
         ) : salaries.length > 0 ? (
           salaries.map((rec) => (
             <div
               key={rec.id}
               onClick={() => setSelectedReceipt(rec)}
-              className="bg-white border border-[#DFECE5] rounded-2xl p-3.5 shadow-2xs hover:border-[#008955] active:scale-[0.99] transition cursor-pointer space-y-2"
+              className={`bg-white border rounded-2xl p-3.5 shadow-2xs hover:border-${
+                isSchool ? 'blue-400' : '[#008955]'
+              } active:scale-[0.99] transition cursor-pointer space-y-2 ${
+                isSchool ? 'border-blue-100' : 'border-[#DFECE5]'
+              }`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-2xl bg-[#E7F6ED] text-[#008955] border border-[#CDE9DC] flex items-center justify-center shrink-0">
+                  <div className={`h-10 w-10 rounded-2xl flex items-center justify-center shrink-0 border ${
+                    isSchool
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-[#E7F6ED] text-[#008955] border-[#CDE9DC]'
+                  }`}>
                     <Receipt size={18} />
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 leading-tight">
-                      {rec.month} মাসের হাদিয়া
+                      {rec.month} মাসের {isSchool ? 'বেতন' : 'হাদিয়া'}
                     </h4>
                     <p className="text-[10px] text-slate-400 font-sans mt-0.5 flex items-center gap-1">
-                      <Calendar size={11} className="text-[#008955]" />
+                      <Calendar size={11} className={isSchool ? 'text-blue-600' : 'text-[#008955]'} />
                       <span>{rec.paymentDate}</span>
                     </p>
                   </div>
                 </div>
 
                 <div className="text-right shrink-0">
-                  <span className="text-sm font-black text-[#008955] font-sans block">
+                  <span className={`text-sm font-black font-sans block ${
+                    isSchool ? 'text-blue-700' : 'text-[#008955]'
+                  }`}>
                     +৳ {rec.amount.toLocaleString('en-US')}
                   </span>
-                  <span className="inline-block mt-0.5 rounded-md bg-emerald-50 border border-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-700 uppercase">
+                  <span className={`inline-block mt-0.5 rounded-md px-1.5 py-0.2 text-[9px] font-bold uppercase border ${
+                    isSchool
+                      ? 'bg-blue-50 border-blue-100 text-blue-700'
+                      : 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                  }`}>
                     {rec.paymentMethod}
                   </span>
                 </div>
@@ -322,7 +371,7 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
 
               {rec.note && (
                 <div className="bg-slate-50 rounded-xl px-2.5 py-1 text-[10px] text-slate-600 border border-slate-100 flex items-start gap-1">
-                  <span className="font-bold text-[#008955] shrink-0">নোট:</span>
+                  <span className={`font-bold shrink-0 ${isSchool ? 'text-blue-600' : 'text-[#008955]'}`}>নোট:</span>
                   <p className="truncate">{rec.note}</p>
                 </div>
               )}
@@ -331,9 +380,11 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
         ) : (
           <div className="rounded-3xl border border-dashed border-[#DFECE5] bg-white p-8 text-center shadow-2xs">
             <Receipt size={28} className="mx-auto text-slate-300" />
-            <p className="mt-2 text-xs font-bold text-slate-700">কোনো হাদিয়ার রেকর্ড পাওয়া যায়নি</p>
+            <p className="mt-2 text-xs font-bold text-slate-700">
+              কোনো {isSchool ? 'বেতনের' : 'হাদিয়ার'} রেকর্ড পাওয়া যায়নি
+            </p>
             <p className="mt-0.5 text-[10px] text-slate-400">
-              অ্যাডমিন থেকে হাদিয়া পরিশোধ ও রসিদ তৈরি করা হলে এখানে স্বয়ংক্রিয়ভাবে প্রদর্শিত হবে।
+              অ্যাডমিন থেকে {isSchool ? 'বেতন' : 'হাদিয়া'} পরিশোধ ও রসিদ তৈরি করা হলে এখানে স্বয়ংক্রিয়ভাবে প্রদর্শিত হবে।
             </p>
           </div>
         )}
@@ -348,11 +399,15 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
           <div
             id="printable-receipt-card"
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-[360px] rounded-3xl bg-white p-5 shadow-2xl border border-emerald-300 text-slate-800"
+            className={`relative w-full max-w-[360px] rounded-3xl bg-white p-5 shadow-2xl border text-slate-800 ${
+              isSchool ? 'border-blue-300' : 'border-emerald-300'
+            }`}
           >
-            <div className="text-center pb-3 border-b border-dashed border-emerald-200">
+            <div className={`text-center pb-3 border-b border-dashed ${isSchool ? 'border-blue-200' : 'border-emerald-200'}`}>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  isSchool ? 'text-blue-800 bg-blue-50 border-blue-200' : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                }`}>
                   শিক্ষক কপি
                 </span>
                 <button
@@ -363,12 +418,18 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
                 </button>
               </div>
 
-              <div className="h-10 w-10 mx-auto rounded-2xl bg-[#E7F6ED] text-[#008955] flex items-center justify-center mb-1 shadow-2xs">
+              <div className={`h-10 w-10 mx-auto rounded-2xl flex items-center justify-center mb-1 shadow-2xs ${
+                isSchool ? 'bg-blue-50 text-blue-700' : 'bg-[#E7F6ED] text-[#008955]'
+              }`}>
                 <ShieldCheck size={24} />
               </div>
-              <h2 className="text-sm font-black text-slate-900 leading-snug text-center">মাদ্রাসায়ে ইসলামিয়া দারুল উলুম, কোম্পানিগঞ্জ।</h2>
-              <p className="text-[10px] text-[#008955] font-bold tracking-wide mt-0.5">
-                শিক্ষক হাদিয়া ও বেতন পরিশোধ ভাউচার
+              <h2 className="text-sm font-black text-slate-900 leading-snug text-center">
+                {isSchool ? 'আল হেলাল ইংলিশ মিডিয়াম ইসলামিক স্কুল' : 'মাদ্রাসায়ে ইসলামিয়া দারুল উলুম, কোম্পানিগঞ্জ।'}
+              </h2>
+              <p className={`text-[10px] font-bold tracking-wide mt-0.5 ${
+                isSchool ? 'text-blue-700' : 'text-[#008955]'
+              }`}>
+                {isSchool ? 'শিক্ষক বেতন পরিশোধ ভাউচার' : 'শিক্ষক হাদিয়া ও বেতন পরিশোধ ভাউচার'}
               </p>
               <p className="text-[9px] text-slate-400 font-mono mt-0.5">
                 ভাউচার নং: {selectedReceipt.id}
@@ -378,14 +439,14 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
             <div className="py-3 space-y-2 text-xs">
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
                 <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-slate-500">ওস্তাদের নাম:</span>
+                  <span className="text-slate-500">{isSchool ? 'শিক্ষকের নাম:' : 'ওস্তাদের নাম:'}</span>
                   <span className="font-bold text-slate-900">
                     {currentTeacher?.fullName || propTeacher?.fullName || user?.name || 'মুহতারাম শিক্ষক'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[11px]">
                   <span className="text-slate-500">পদবী:</span>
-                  <span className="font-bold text-[#008955]">
+                  <span className={`font-bold ${isSchool ? 'text-blue-700' : 'text-[#008955]'}`}>
                     {currentTeacher?.designation || propTeacher?.designation || 'শিক্ষক'}
                   </span>
                 </div>
@@ -393,7 +454,7 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
 
               <div className="space-y-1.5 pt-1 text-[11px]">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500">হাদিয়ার মাস:</span>
+                  <span className="text-slate-500">{isSchool ? 'বেতনের মাস:' : 'হাদিয়ার মাস:'}</span>
                   <span className="font-bold text-slate-800">{selectedReceipt.month}</span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -406,7 +467,9 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500">পেমেন্ট মাধ্যম:</span>
-                  <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                  <span className={`font-bold px-2 py-0.5 rounded border ${
+                    isSchool ? 'text-blue-800 bg-blue-50 border-blue-100' : 'text-emerald-800 bg-emerald-50 border-emerald-100'
+                  }`}>
                     {selectedReceipt.paymentMethod}
                   </span>
                 </div>
@@ -421,9 +484,15 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
                 </div>
               )}
 
-              <div className="my-2.5 p-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-[#E7F6ED] border border-emerald-300 text-center">
-                <span className="text-[10px] font-bold text-[#008955] block">পরিশোধিত হাদিয়ার পরিমাণ</span>
-                <p className="text-2xl font-black text-[#008955] font-sans mt-0.5">
+              <div className={`my-2.5 p-3 rounded-2xl border text-center ${
+                isSchool
+                  ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300'
+                  : 'bg-gradient-to-r from-emerald-50 to-[#E7F6ED] border-emerald-300'
+              }`}>
+                <span className={`text-[10px] font-bold block ${isSchool ? 'text-blue-700' : 'text-[#008955]'}`}>
+                  পরিশোধিত {isSchool ? 'বেতনের' : 'হাদিয়ার'} পরিমাণ
+                </span>
+                <p className={`text-2xl font-black font-sans mt-0.5 ${isSchool ? 'text-blue-700' : 'text-[#008955]'}`}>
                   ৳ {selectedReceipt.amount.toLocaleString('en-US')}
                 </p>
                 <span className="text-[9px] font-bold text-slate-500">স্ট্যাটাস: পরিশোধ সম্পন্ন (PAID)</span>
@@ -434,7 +503,7 @@ export function TeacherHadiyaTab({ teacher: propTeacher }: TeacherHadiyaTabProps
               <div className="flex justify-between items-end pb-3 text-[9px] text-slate-400">
                 <div className="text-center">
                   <div className="w-20 border-b border-slate-300 mb-1"></div>
-                  <span>মুহতামিম স্বাক্ষর</span>
+                  <span>{isSchool ? 'প্রিন্সিপাল স্বাক্ষর' : 'মুহতামিম স্বাক্ষর'}</span>
                 </div>
                 <div className="text-center">
                   <div className="w-20 border-b border-slate-300 mb-1"></div>

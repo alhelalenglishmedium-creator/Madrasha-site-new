@@ -14,14 +14,15 @@ interface NavItem {
 interface TeacherBottomNavProps {
   activeTab: TeacherTab;
   onTabChange: (tab: TeacherTab) => void;
+  isSchool?: boolean;
 }
 
-export function TeacherBottomNav({ activeTab, onTabChange }: TeacherBottomNavProps) {
+export function TeacherBottomNav({ activeTab, onTabChange, isSchool = false }: TeacherBottomNavProps) {
   // শিক্ষকদের জন্য ৪টি মূল নেভিগেশন ট্যাব
   const navItems: NavItem[] = [
     { id: 'home', label: 'হোম', icon: Home },
     { id: 'attendance', label: 'হাজিরা', icon: CalendarCheck },
-    { id: 'hadiya', label: 'হাদিয়া', icon: CircleDollarSign },
+    { id: 'hadiya', label: isSchool ? 'বেতন' : 'হাদিয়া', icon: CircleDollarSign },
     { id: 'profile', label: 'প্রোফাইল', icon: User },
   ];
 
@@ -42,11 +43,13 @@ export function TeacherBottomNav({ activeTab, onTabChange }: TeacherBottomNavPro
                   onClick={() => onTabChange(item.id)}
                   className="flex flex-1 flex-col items-center justify-center gap-1 group transition-all"
                 >
-                  {/* অ্যাক্টিভ অবস্থায় সিগনেচার সবুজ ক্যাপসুল শেপ */}
+                  {/* অ্যাক্টিভ অবস্থায় সিগনেচার ক্যাপসুল শেপ */}
                   <div
                     className={`flex items-center justify-center transition-all duration-200 ${
                       isActive
-                        ? 'h-8 w-14 rounded-full bg-[#008955] text-white shadow-xs scale-100'
+                        ? isSchool
+                          ? 'h-8 w-14 rounded-full bg-blue-600 text-white shadow-xs scale-100'
+                          : 'h-8 w-14 rounded-full bg-[#008955] text-white shadow-xs scale-100'
                         : 'h-8 w-8 text-[#9CA3AF] group-hover:text-[#4B5563]'
                     }`}
                   >
@@ -59,7 +62,11 @@ export function TeacherBottomNav({ activeTab, onTabChange }: TeacherBottomNavPro
                   {/* টেক্সট লেবেল */}
                   <span
                     className={`text-[11px] font-medium leading-none tracking-tight transition-colors ${
-                      isActive ? 'font-bold text-[#008955]' : 'text-[#6B7280]'
+                      isActive
+                        ? isSchool
+                          ? 'font-bold text-blue-700'
+                          : 'font-bold text-[#008955]'
+                        : 'text-[#6B7280]'
                     }`}
                   >
                     {item.label}

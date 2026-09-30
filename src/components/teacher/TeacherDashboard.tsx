@@ -24,6 +24,7 @@ import {
   Award,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useInstitution } from '@/context/InstitutionContext';
 import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
 import type { Student, Staff } from '@/types/database.types';
@@ -46,6 +47,7 @@ import {
 
 export function TeacherDashboard() {
   const { user } = useAuth();
+  const { currentInstitution } = useInstitution();
   const [activeTab, setActiveTab] = useState<TeacherTab>('home');
   const [students, setStudents] = useState<Student[]>([]);
   const [currentTeacher, setCurrentTeacher] = useState<Staff | null>(() => {
@@ -59,6 +61,25 @@ export function TeacherDashboard() {
     }
     return null;
   });
+
+  const isSchoolTeacher = useMemo(() => {
+    if ((currentTeacher as any)?.institutionType === 'school' || (currentTeacher as any)?.institution_type === 'school') return true;
+    if (currentInstitution?.type === 'school') return true;
+    const cls = (currentTeacher?.assignedClass || '').toLowerCase();
+    return (
+      cls.includes('class') ||
+      cls.includes('play') ||
+      cls.includes('nursery') ||
+      cls.includes('প্লে') ||
+      cls.includes('কেজি') ||
+      cls.includes('ওয়ান') ||
+      cls.includes('টু') ||
+      cls.includes('থ্রি') ||
+      cls.includes('ফোর') ||
+      cls.includes('ফাইভ') ||
+      cls.includes('standard')
+    );
+  }, [currentTeacher, currentInstitution?.type]);
 
   const [isTodayAttendanceDone, setIsTodayAttendanceDone] = useState<boolean>(false);
   const [isHadiyaPaidThisMonth, setIsHadiyaPaidThisMonth] = useState<boolean>(false);
@@ -634,7 +655,9 @@ export function TeacherDashboard() {
                   onClick={() => setActiveTab('hadiya')}
                   className="bg-white p-2.5 rounded-2xl border border-[#DFECE5] shadow-2xs flex flex-col justify-between h-20 text-center cursor-pointer hover:border-[#008955] transition active:scale-95"
                 >
-                  <span className="text-[10px] font-bold text-slate-500">চলতি হাদিয়া</span>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    {isSchoolTeacher ? 'চলতি বেতন' : 'চলতি হাদিয়া'}
+                  </span>
                   <p className="text-xs font-black text-slate-800 font-sans mt-0.5 truncate">
                     ৳ {Number(teacherHadia).toLocaleString('en-US')}
                   </p>
@@ -694,116 +717,118 @@ export function TeacherDashboard() {
               </div>
 
               {/* ================= হিফজ বিভাগ খাস ট্র্যাকিং ড্যাশবোর্ড ================= */}
-              <div className="pt-2 space-y-2">
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#008955] animate-pulse" />
-                    <h3 className="text-xs font-bold text-slate-800">হিফজুল কুরআন দৈনিক ট্র্যাকিং</h3>
+              {!isSchoolTeacher && (
+                <div className="pt-2 space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-[#008955] animate-pulse" />
+                      <h3 className="text-xs font-bold text-slate-800">হিফজুল কুরআন দৈনিক ট্র্যাকিং</h3>
+                    </div>
+                    <span className="text-[9px] bg-emerald-100 text-[#008955] px-2 py-0.5 rounded font-extrabold border border-emerald-200">
+                      হিফজ বিভাগ খাস
+                    </span>
                   </div>
-                  <span className="text-[9px] bg-emerald-100 text-[#008955] px-2 py-0.5 rounded font-extrabold border border-emerald-200">
-                    হিফজ বিভাগ খাস
-                  </span>
+
+                  {/* ৪টি আলাদা এন্ট্রি বাটন গ্রিড */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* ১. সবক বাটন */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSabakStudent(null);
+                        setSabakModalSection('sabak');
+                        setIsSabakModalOpen(true);
+                      }}
+                      className="p-3 rounded-2xl bg-white border border-emerald-200 hover:border-[#008955] shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <div className="h-8 w-8 rounded-xl bg-emerald-50 text-[#008955] flex items-center justify-center group-hover:bg-[#008955] group-hover:text-white transition">
+                          <BookOpen size={16} />
+                        </div>
+                        <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded">
+                          নতুন পাঠ
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-900 group-hover:text-[#008955] transition">১. সবক এন্ট্রি</p>
+                        <span className="text-[9.5px] text-slate-400 block mt-0.5">আজকের নতুন পাঠ শুনানী</span>
+                      </div>
+                    </button>
+
+                    {/* ২. সাত সবক বাটন */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSabakStudent(null);
+                        setSabakModalSection('saatSabak');
+                        setIsSabakModalOpen(true);
+                      }}
+                      className="p-3 rounded-2xl bg-white border border-sky-200 hover:border-sky-500 shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <div className="h-8 w-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center group-hover:bg-sky-600 group-hover:text-white transition">
+                          <BookmarkCheck size={16} />
+                        </div>
+                        <span className="text-[9px] font-bold text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded">
+                          চলতি রিভিশন
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-900 group-hover:text-sky-700 transition">২. সাত সবক এন্ট্রি</p>
+                        <span className="text-[9.5px] text-slate-400 block mt-0.5">চলতি পারার পৃষ্ঠা দোহর</span>
+                      </div>
+                    </button>
+
+                    {/* ৩. আমুখতা বাটন */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSabakStudent(null);
+                        setSabakModalSection('alMukhta');
+                        setIsSabakModalOpen(true);
+                      }}
+                      className="p-3 rounded-2xl bg-white border border-amber-200 hover:border-amber-500 shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition">
+                          <Sparkles size={16} />
+                        </div>
+                        <span className="text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded">
+                          আমুখতা
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-900 group-hover:text-amber-700 transition">৩. আমুখতা এন্ট্রি</p>
+                        <span className="text-[9.5px] text-slate-400 block mt-0.5">পেছনের মুখস্থ পারার দোহর</span>
+                      </div>
+                    </button>
+
+                    {/* ৪. সবিনা বাটন */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSabakStudent(null);
+                        setSabakModalSection('sabina');
+                        setIsSabakModalOpen(true);
+                      }}
+                      className="p-3 rounded-2xl bg-white border border-purple-200 hover:border-purple-500 shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <div className="h-8 w-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition">
+                          <Award size={16} />
+                        </div>
+                        <span className="text-[9px] font-bold text-purple-800 bg-purple-50 px-1.5 py-0.5 rounded">
+                          সাপ্তাহিক
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-900 group-hover:text-purple-700 transition">৪. সবিনা এন্ট্রি</p>
+                        <span className="text-[9.5px] text-slate-400 block mt-0.5">এক বৈঠকে পূর্ণ পারা শুনানী</span>
+                      </div>
+                    </button>
+                  </div>
                 </div>
-
-                {/* ৪টি আলাদা এন্ট্রি বাটন গ্রিড */}
-                <div className="grid grid-cols-2 gap-2">
-                  {/* ১. সবক বাটন */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSabakStudent(null);
-                      setSabakModalSection('sabak');
-                      setIsSabakModalOpen(true);
-                    }}
-                    className="p-3 rounded-2xl bg-white border border-emerald-200 hover:border-[#008955] shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between w-full mb-1.5">
-                      <div className="h-8 w-8 rounded-xl bg-emerald-50 text-[#008955] flex items-center justify-center group-hover:bg-[#008955] group-hover:text-white transition">
-                        <BookOpen size={16} />
-                      </div>
-                      <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded">
-                        নতুন পাঠ
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 group-hover:text-[#008955] transition">১. সবক এন্ট্রি</p>
-                      <span className="text-[9.5px] text-slate-400 block mt-0.5">আজকের নতুন পাঠ শুনানী</span>
-                    </div>
-                  </button>
-
-                  {/* ২. সাত সবক বাটন */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSabakStudent(null);
-                      setSabakModalSection('saatSabak');
-                      setIsSabakModalOpen(true);
-                    }}
-                    className="p-3 rounded-2xl bg-white border border-sky-200 hover:border-sky-500 shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between w-full mb-1.5">
-                      <div className="h-8 w-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center group-hover:bg-sky-600 group-hover:text-white transition">
-                        <BookmarkCheck size={16} />
-                      </div>
-                      <span className="text-[9px] font-bold text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded">
-                        চলতি রিভিশন
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 group-hover:text-sky-700 transition">২. সাত সবক এন্ট্রি</p>
-                      <span className="text-[9.5px] text-slate-400 block mt-0.5">চলতি পারার পৃষ্ঠা দোহর</span>
-                    </div>
-                  </button>
-
-                  {/* ৩. আমুখতা বাটন */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSabakStudent(null);
-                      setSabakModalSection('alMukhta');
-                      setIsSabakModalOpen(true);
-                    }}
-                    className="p-3 rounded-2xl bg-white border border-amber-200 hover:border-amber-500 shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between w-full mb-1.5">
-                      <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition">
-                        <Sparkles size={16} />
-                      </div>
-                      <span className="text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded">
-                        আমুখতা
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 group-hover:text-amber-700 transition">৩. আমুখতা এন্ট্রি</p>
-                      <span className="text-[9.5px] text-slate-400 block mt-0.5">পেছনের মুখস্থ পারার দোহর</span>
-                    </div>
-                  </button>
-
-                  {/* ৪. সবিনা বাটন */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSabakStudent(null);
-                      setSabakModalSection('sabina');
-                      setIsSabakModalOpen(true);
-                    }}
-                    className="p-3 rounded-2xl bg-white border border-purple-200 hover:border-purple-500 shadow-2xs hover:shadow-xs active:scale-[0.98] transition flex flex-col justify-between text-left group cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between w-full mb-1.5">
-                      <div className="h-8 w-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition">
-                        <Award size={16} />
-                      </div>
-                      <span className="text-[9px] font-bold text-purple-800 bg-purple-50 px-1.5 py-0.5 rounded">
-                        সাপ্তাহিক
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 group-hover:text-purple-700 transition">৪. সবিনা এন্ট্রি</p>
-                      <span className="text-[9.5px] text-slate-400 block mt-0.5">এক বৈঠকে পূর্ণ পারা শুনানী</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
+              )}
 
               {/* শিক্ষার্থী ও অভিভাবক যোগাযোগ তালিকা */}
               <div className="space-y-2 pt-1 pb-10">
@@ -812,7 +837,7 @@ export function TeacherDashboard() {
                     শিক্ষার্থী ও অভিভাবক যোগাযোগ ({students.length} জন)
                   </h2>
                   <span className="text-[10px] text-[#008955] font-semibold bg-[#E7F6ED] px-2 py-0.5 rounded-md">
-                    {currentTeacher?.assignedClass || 'হিফজ'} বিভাগ
+                    {currentTeacher?.assignedClass || (isSchoolTeacher ? 'স্কুল' : 'হিফজ')} {isSchoolTeacher ? 'শ্রেণি' : 'বিভাগ'}
                   </span>
                 </div>
 
@@ -852,7 +877,7 @@ export function TeacherDashboard() {
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {isHifzStudent(std) && (
+                          {!isSchoolTeacher && isHifzStudent(std) && (
                             <button
                               type="button"
                               onClick={() => {
@@ -902,16 +927,16 @@ export function TeacherDashboard() {
 
           {/* ================= ৩. হাদিয়া লেজার ও রসিদ ট্যাব ================= */}
           {activeTab === 'hadiya' && (
-            <TeacherHadiyaTab teacher={currentTeacher} />
+            <TeacherHadiyaTab teacher={currentTeacher} isSchool={isSchoolTeacher} />
           )}
 
           {/* ================= ৪. শিক্ষক প্রোফাইল ট্যাব ================= */}
-          {activeTab === 'profile' && <TeacherProfile teacher={currentTeacher} />}
+          {activeTab === 'profile' && <TeacherProfile teacher={currentTeacher} isSchool={isSchoolTeacher} />}
 
         </main>
 
         {/* বটম নেভিগেশন বার */}
-        <TeacherBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+        <TeacherBottomNav activeTab={activeTab} onTabChange={setActiveTab} isSchool={isSchoolTeacher} />
 
       </div>
 
@@ -958,13 +983,13 @@ export function TeacherDashboard() {
             {/* কনটেন্ট লিস্ট */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               
-              {/* ১. হাদিয়া নোটিফিকেশন কার্ড */}
+              {/* ১. হাদিয়া / বেতন নোটিফিকেশন কার্ড */}
               {unreadSalaryNotice && (
-                <div className="p-3.5 rounded-2xl bg-gradient-to-tr from-emerald-50 to-[#E7F6ED] border border-[#BBE3D3] space-y-2 shadow-2xs">
+                <div className={`p-3.5 rounded-2xl ${isSchoolTeacher ? 'bg-gradient-to-tr from-blue-50 to-indigo-50 border border-blue-200' : 'bg-gradient-to-tr from-emerald-50 to-[#E7F6ED] border border-[#BBE3D3]'} space-y-2 shadow-2xs`}>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-white bg-[#008955] px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span className={`text-[10px] font-bold text-white ${isSchoolTeacher ? 'bg-blue-600' : 'bg-[#008955]'} px-2 py-0.5 rounded-full flex items-center gap-1`}>
                       <Wallet size={10} />
-                      <span>হাদিয়া পরিষদ সম্পন্ন</span>
+                      <span>{isSchoolTeacher ? 'বেতন পরিশোধ সম্পন্ন' : 'হাদিয়া পরিষদ সম্পন্ন'}</span>
                     </span>
                     <span className="text-[10px] text-slate-400 font-sans">
                       {unreadSalaryNotice.paymentDate}
@@ -973,10 +998,10 @@ export function TeacherDashboard() {
 
                   <div>
                     <h4 className="text-xs font-bold text-slate-900">
-                      মুহতারাম, আপনার {unreadSalaryNotice.month} মাসের হাদিয়া পরিশোধ করা হয়েছে!
+                      মুহতারাম, আপনার {unreadSalaryNotice.month} মাসের {isSchoolTeacher ? 'বেতন' : 'হাদিয়া'} পরিশোধ করা হয়েছে!
                     </h4>
                     <p className="text-[11px] text-slate-600 mt-0.5">
-                      পরিমাণ: <strong className="text-[#008955] font-sans">৳ {unreadSalaryNotice.amount.toLocaleString('en-US')}</strong> ({unreadSalaryNotice.paymentMethod})
+                      পরিমাণ: <strong className={`${isSchoolTeacher ? 'text-blue-600' : 'text-[#008955]'} font-sans`}>৳ {unreadSalaryNotice.amount.toLocaleString('en-US')}</strong> ({unreadSalaryNotice.paymentMethod})
                     </p>
                   </div>
 
@@ -984,7 +1009,7 @@ export function TeacherDashboard() {
                     <button
                       type="button"
                       onClick={handleAcknowledgeSalary}
-                      className="flex-1 py-2 rounded-xl bg-[#008955] hover:bg-[#007548] text-white text-xs font-bold shadow-xs active:scale-95 transition flex items-center justify-center gap-1"
+                      className={`flex-1 py-2 rounded-xl ${isSchoolTeacher ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#008955] hover:bg-[#007548]'} text-white text-xs font-bold shadow-xs active:scale-95 transition flex items-center justify-center gap-1`}
                     >
                       <Check size={14} strokeWidth={3} />
                       <span>আলহামদুলিল্লাহ, পেয়েছি</span>
@@ -1046,7 +1071,9 @@ export function TeacherDashboard() {
                   <div className="py-12 text-center text-slate-400">
                     <Bell size={28} className="mx-auto text-slate-300 mb-2" />
                     <p className="text-xs font-bold text-slate-700">নতুন কোনো নোটিশ নেই</p>
-                    <p className="text-[10px] mt-0.5">মাদ্রাসা থেকে কোনো নোটিশ দিলে এখানে দেখতে পাবেন।</p>
+                    <p className="text-[10px] mt-0.5">
+                      {isSchoolTeacher ? 'স্কুল থেকে কোনো নোটিশ দিলে এখানে দেখতে পাবেন।' : 'মাদ্রাসা থেকে কোনো নোটিশ দিলে এখানে দেখতে পাবেন।'}
+                    </p>
                   </div>
                 )
               )}

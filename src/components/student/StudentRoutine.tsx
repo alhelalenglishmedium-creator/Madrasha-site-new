@@ -80,7 +80,7 @@ export function StudentRoutine({ classNameProp = 'হিফজুল কুর�
             startTime: item.start_time || item.startTime || '',
             endTime: item.end_time || item.endTime || '',
             subjectName: item.subject_name || item.subjectName || item.subject || 'সাধারণ বিষয়',
-            teacherName: item.teacher_name || item.teacherName || item.teacher || 'উস্তাদ নির্ধারণ করা হয়নি',
+            teacherName: item.teacher_name || item.teacherName || item.teacher || 'শিক্ষক নির্ধারণ করা হয়নি',
             roomNo,
             periodName,
             cw,
