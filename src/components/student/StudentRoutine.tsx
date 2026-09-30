@@ -14,6 +14,10 @@ interface RoutinePeriod {
   subjectName: string;
   teacherName: string;
   roomNo?: string;
+  periodName?: string;
+  cw?: string;
+  hw?: string;
+  dueDate?: string;
 }
 
 interface StudentRoutineProps {
@@ -25,7 +29,7 @@ export function StudentRoutine({ classNameProp = 'হিফজুল কুর�
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedDay, setSelectedDay] = useState<string>('আজকের দিন');
 
-  const daysList = ['আজকের দিন', 'শনিবার', 'রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার'];
+  const daysList = ['আজকের দিন', 'প্রতিদিন', 'শনিবার', 'রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার'];
 
   useEffect(() => {
     const fetchClassRoutine = async () => {
@@ -36,29 +40,56 @@ export function StudentRoutine({ classNameProp = 'হিফজুল কুর�
         const { data, error } = await supabase
           .from('class_routines')
           .select('*')
-          .eq('class_name', classNameProp);
+          .or(`class_name.eq.${classNameProp},class_name.ilike.%${classNameProp}%`);
 
+        let rawList: any[] = [];
         if (!error && data && data.length > 0) {
-          const formatted: RoutinePeriod[] = data.map((item: any) => ({
-            id: item.id,
-            className: item.class_name,
-            day: item.day,
-            startTime: item.start_time,
-            endTime: item.end_time,
-            subjectName: item.subject_name,
-            teacherName: item.teacher_name,
-            roomNo: item.room_no,
-          }));
-          setRoutines(formatted);
+          rawList = data;
         } else {
-          // লোকাল স্টোরেজ চেক (যদি অফলাইনে অ্যাডমিন ক্যাশ থাকে)
-          const cached = localStorage.getItem(`madrasa_routine_${classNameProp}`);
+          const cached = localStorage.getItem(`madrasa_routine_${classNameProp}`) ||
+                         localStorage.getItem(`school_class_diary_${classNameProp}`);
           if (cached) {
-            setRoutines(JSON.parse(cached));
-          } else {
-            setRoutines([]);
+            try {
+              rawList = JSON.parse(cached);
+            } catch (e) {}
           }
         }
+
+        const formatted: RoutinePeriod[] = rawList.map((item: any) => {
+          let periodName = item.period || '';
+          let cw = item.cw || '';
+          let hw = item.hw || '';
+          let dueDate = item.dueDate || '';
+          let roomNo = item.room_no || item.room || '';
+
+          if (item.room_no && typeof item.room_no === 'string' && item.room_no.startsWith('{')) {
+            try {
+              const meta = JSON.parse(item.room_no);
+              periodName = meta.period || periodName;
+              cw = meta.cw || cw;
+              hw = meta.hw || hw;
+              dueDate = meta.dueDate || dueDate;
+              roomNo = meta.room || '';
+            } catch (e) {}
+          }
+
+          return {
+            id: item.id,
+            className: item.class_name || classNameProp,
+            day: item.day || 'প্রতিদিন',
+            startTime: item.start_time || item.startTime || '',
+            endTime: item.end_time || item.endTime || '',
+            subjectName: item.subject_name || item.subjectName || item.subject || 'সাধারণ বিষয়',
+            teacherName: item.teacher_name || item.teacherName || item.teacher || 'উস্তাদ নির্ধারণ করা হয়নি',
+            roomNo,
+            periodName,
+            cw,
+            hw,
+            dueDate,
+          };
+        });
+
+        setRoutines(formatted);
       } catch (err) {
         console.warn('রুটিন লোড ত্রুটি:', err);
         setRoutines([]);
@@ -107,28 +138,52 @@ export function StudentRoutine({ classNameProp = 'হিফজুল কুর�
           {displayRoutines.map((period, idx) => (
             <div
               key={period.id || idx}
-              className="bg-white rounded-2xl border border-slate-200/80 p-3 flex items-center justify-between shadow-2xs hover:border-emerald-200 transition"
+              className="bg-white rounded-2xl border border-slate-200/80 p-3 shadow-2xs hover:border-emerald-200 transition space-y-1.5"
             >
-              <div className="flex items-center gap-3">
-                <span className="font-sans font-bold text-[11px] text-[#008955] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl shrink-0">
-                  {toBengaliNumber(period.startTime)} - {toBengaliNumber(period.endTime)}
-                </span>
-                <div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {period.periodName && (
+                    <span className="text-[9.5px] font-black px-2 py-0.5 rounded-full bg-[#1E3A8A] text-white font-sans shrink-0">
+                      {period.periodName}
+                    </span>
+                  )}
+                  <span className="font-sans font-bold text-[10.5px] text-[#008955] bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-xl shrink-0">
+                    {toBengaliNumber(period.startTime)} - {toBengaliNumber(period.endTime)}
+                  </span>
                   <h4 className="text-xs font-bold text-slate-900 leading-tight">
                     {period.subjectName}
                   </h4>
-                  <p className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
-                    <User size={11} className="text-slate-400" />
-                    <span>{period.teacherName}</span>
-                    {period.roomNo && (
-                      <>
-                        <span>•</span>
-                        <span>কক্ষ: {toBengaliNumber(period.roomNo)}</span>
-                      </>
-                    )}
-                  </p>
                 </div>
               </div>
+
+              <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                <User size={11} className="text-slate-400" />
+                <span>শিক্ষক: <strong className="text-slate-700">{period.teacherName}</strong></span>
+                {period.roomNo && (
+                  <>
+                    <span>•</span>
+                    <span>কক্ষ: {toBengaliNumber(period.roomNo)}</span>
+                  </>
+                )}
+              </p>
+
+              {(period.cw || period.hw) && (
+                <div className="pt-1.5 border-t border-slate-100 text-[10px] space-y-1">
+                  {period.cw && (
+                    <div className="text-slate-600 flex items-start gap-1">
+                      <span className="font-bold text-blue-700 bg-blue-50 px-1 rounded text-[9px] shrink-0 font-sans">C.W.</span>
+                      <span>{period.cw}</span>
+                    </div>
+                  )}
+                  {period.hw && (
+                    <div className="text-slate-800 font-medium flex items-start gap-1">
+                      <span className="font-bold text-amber-800 bg-amber-100 px-1 rounded text-[9px] shrink-0 font-sans">H.W.</span>
+                      <span>{period.hw}</span>
+                      {period.dueDate && <span className="text-[9px] text-slate-400 ml-auto font-sans">(জমা: {period.dueDate})</span>}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

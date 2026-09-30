@@ -16,6 +16,9 @@ import {
   AlertCircle,
   Layers,
   AlertTriangle,
+  SlidersHorizontal,
+  Check,
+  Trash2,
 } from 'lucide-react';
 import { localDb } from '@/db/localDb';
 import { supabase } from '@/lib/supabaseClient';
@@ -48,6 +51,8 @@ interface StudentDueInfo {
   totalPaidAmount: number;
   payments: PaymentWithStudent[];
   firstUnpaidMonthLabel?: string;
+  previousYearDueAmount?: number;
+  currentYearDueAmount?: number;
 }
 
 const BENGALI_MONTHS = [
@@ -126,45 +131,124 @@ export default function FeesPage() {
   // শিক্ষার্থী লেজার পপআপ
   const [selectedStudentHistory, setSelectedStudentHistory] = useState<StudentDueInfo | null>(null);
 
-  // চলতি মাস
-  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  // অ্যাকাউন্টিং সেশনের শুরুর মাস (ডিফল্ট: সেপ্টেম্বর ২০২৬)
+  const [accountingStartMonth, setAccountingStartMonth] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('madrasa_fee_accounting_start') || '2026-09';
+    }
+    return '2026-09';
+  });
+
+  const currentDate = useMemo(() => new Date(), []);
+  const currentYear = currentDate.getFullYear();
+  const currentMonthNum = currentDate.getMonth(); // 0 = Jan, 8 = Sep
+  const currentMonthKey = currentDate.toISOString().slice(0, 7);
+
+  // নির্বাচিত শিক্ষাবর্ষ (যেমন: 2026, 2027)
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // ১. ফি পেমেন্ট ও ছাত্র তালিকা লোড
   const loadFeeData = async () => {
     try {
       setIsLoading(true);
 
-      const students = await localDb.students.where('status').equals('active').toArray();
+      let students = await localDb.students.where('status').equals('active').toArray();
+      if (students.length === 0) {
+        students = await localDb.students.toArray();
+      }
+
+      // সুপাবেস ক্লাউড থেকে শিক্ষার্থী সিঙ্ক
+      try {
+        const { data: cloudStudents } = await supabase.from('students').select('*').eq('status', 'active');
+        if (cloudStudents && cloudStudents.length > 0) {
+          for (const cs of cloudStudents) {
+            await localDb.students.put({
+              id: String(cs.id),
+              admissionNo: cs.admission_no || String(cs.id),
+              fullName: cs.name || cs.full_name,
+              fullNameBangla: cs.name || cs.full_name,
+              className: cs.class_name,
+              rollNo: cs.roll_no,
+              monthlyFee: Number(cs.monthly_fee) || 0,
+              phone: cs.phone || '',
+              fatherName: cs.father_name || '',
+              status: cs.status || 'active',
+              institutionType: cs.institution_type || 'madrasa',
+            } as any);
+          }
+          students = await localDb.students.where('status').equals('active').toArray();
+        }
+      } catch (e) {
+        console.warn('Students sync warning:', e);
+      }
+
       setStudentsList(students);
       const studentMap = new Map<string, Student>();
       students.forEach((s) => studentMap.set(s.id, s));
 
-      const defaultClasses = ['প্লে', 'নার্সারি', 'হিফজ'];
-      const savedClasses = localStorage.getItem('madrasa_custom_classes');
-      if (savedClasses) {
-        try {
-          const parsed = JSON.parse(savedClasses);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((c) => {
-              if (!defaultClasses.includes(c)) defaultClasses.push(c);
+      // ডাইনামিক শ্রেণি তালিকা
+      const activeClasses = Array.from(new Set(students.map((s) => s.className?.trim()).filter(Boolean) as string[]));
+      setClassList(['সব', ...activeClasses]);
+
+      // বৈধ শিক্ষার্থী আইডি সেট (যাতে মুছে ফেলা ডামি ছাত্রের পেমেন্ট না থাকে)
+      const validStudentIds = new Set<string>();
+      students.forEach((s) => {
+        if (s.id) validStudentIds.add(String(s.id).trim());
+        if (s.admissionNo) validStudentIds.add(String(s.admissionNo).trim());
+        if (s.rollNo) validStudentIds.add(String(s.rollNo).trim());
+      });
+
+      // সুপাবেস ফি সিঙ্কিং ও লোকাল ক্যাশ ক্লিনআপ
+      try {
+        const { data: cloudFees, error: cfErr } = await supabase.from('student_fees').select('*');
+        if (!cfErr && Array.isArray(cloudFees)) {
+          const cloudReceipts = new Set(cloudFees.map((f: any) => String(f.receipt_no || f.id)));
+          const allLocalPayments = await localDb.feePayments.toArray();
+
+          for (const lp of allLocalPayments) {
+            const payStdId = String(lp.studentId || '').trim();
+            const isOrphan = !validStudentIds.has(payStdId);
+            const isDeletedInCloud = cloudFees.length === 0 || (!cloudReceipts.has(String(lp.receiptNo || '')) && !cloudReceipts.has(String(lp.id)));
+
+            if (isOrphan || isDeletedInCloud) {
+              await localDb.feePayments.delete(lp.id);
+            }
+          }
+
+          for (const cf of cloudFees) {
+            await localDb.feePayments.put({
+              id: String(cf.id),
+              receiptNo: cf.receipt_no || `REC-${String(cf.id).slice(-6)}`,
+              studentId: String(cf.student_id),
+              amount: Number(cf.amount) || 0,
+              feeTypeId: cf.fee_type || 'মাসিক বেতন',
+              feeType: cf.fee_type || 'মাসিক বেতন',
+              month: cf.month || 'চলতি মাস',
+              paymentDate: cf.paid_at ? cf.paid_at.split('T')[0] : (cf.created_at ? cf.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
+              paymentMethod: cf.payment_method || 'cash',
+              notes: cf.note || '',
+              synced: true,
+              createdAt: cf.created_at,
             });
           }
-        } catch (e) {
-          console.error(e);
+        }
+      } catch (e) {
+        console.warn('Cloud fee sync warning:', e);
+      }
+
+      // এতিম ডামি পেমেন্ট লোকাল থেকেও ফিল্টার আউট
+      const allPayments = await localDb.feePayments.toArray();
+      for (const p of allPayments) {
+        if (!validStudentIds.has(String(p.studentId).trim())) {
+          await localDb.feePayments.delete(p.id);
         }
       }
 
-      students.forEach((s) => {
-        if (s.className && !defaultClasses.includes(s.className)) {
-          defaultClasses.push(s.className);
-        }
-      });
-      setClassList(['সব', ...defaultClasses]);
+      const refreshedPayments = await localDb.feePayments.toArray();
+      refreshedPayments.reverse();
 
-      const allPayments = await localDb.feePayments.toArray();
-      allPayments.reverse();
-
-      const combined: PaymentWithStudent[] = allPayments.map((p) => ({
+      const combined: PaymentWithStudent[] = refreshedPayments.map((p) => ({
         ...p,
         student: studentMap.get(p.studentId),
       }));
@@ -180,6 +264,52 @@ export default function FeesPage() {
   useEffect(() => {
     loadFeeData();
   }, []);
+
+  // পেমেন্ট রেকর্ড মুছে ফেলা
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!confirm('আপনি কি নিশ্চিত এই জমার রেকর্ডটি মুছে ফেলতে চান?')) return;
+    try {
+      await localDb.feePayments.delete(paymentId);
+      try {
+        await supabase.from('student_fees').delete().or(`id.eq.${paymentId},receipt_no.eq.${paymentId}`);
+      } catch (e) {
+        console.warn(e);
+      }
+      setSuccessToast('পেমেন্ট রেকর্ড মুছে ফেলা হয়েছে!');
+      setTimeout(() => setSuccessToast(''), 3000);
+      await loadFeeData();
+      setSelectedStudentHistory((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          payments: prev.payments.filter((p) => p.id !== paymentId),
+        };
+      });
+    } catch (err) {
+      alert('মুছে ফেলতে সমস্যা হয়েছে');
+    }
+  };
+
+  // সকল ডেমো/টেস্ট ফি রিসেট করা
+  const handleClearAllDemoData = async () => {
+    if (!confirm('আপনি কি জানুয়ারি-আগস্টের সকল ডেমো/টেস্ট ফি মুছে ফেলে ফ্রেশ সেপ্টেম্বর থেকে শুরু করতে চান?')) return;
+    try {
+      const all = await localDb.feePayments.toArray();
+      for (const item of all) {
+        const m = normalizeMonthKey(item.month, item.paymentDate);
+        if (!m || m < '2026-09' || item.studentId === 'STUDENT_ID_HERE') {
+          await localDb.feePayments.delete(item.id);
+        }
+      }
+      setSuccessToast('সকল ডেমো ফি মুছে ফেলা হয়েছে!');
+      setTimeout(() => setSuccessToast(''), 3000);
+      await loadFeeData();
+      setSelectedStudentHistory(null);
+      setIsSettingsOpen(false);
+    } catch (e) {
+      alert('রিসেট করতে সমস্যা হয়েছে');
+    }
+  };
 
   // নতুন ফি সংরক্ষণ
   const handleSavePayment = async (paymentData: any) => {
@@ -238,19 +368,26 @@ export default function FeesPage() {
     }
   };
 
-  // ২. জানুয়ারি হতে চলতি মাস পর্যন্ত প্রতি শিক্ষার্থীর পূর্ণ হিসাব ও পেইড/আনপেইড গ্রিড
+  // ২. নির্বাচিত শিক্ষাবর্ষ ও অ্যাকাউন্ট শুরুর মাস অনুযায়ী শিক্ষার্থীর হিসাব ও পেইড/আনপেইড গ্রিড
   const studentsDueSummary = useMemo(() => {
     const summaryMap = new Map<string, StudentDueInfo>();
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonthNum = currentDate.getMonth(); // 0 = Jan, 8 = Sep
+
+    const [accStartYearStr, accStartMonthStr] = accountingStartMonth.split('-');
+    const accStartYear = parseInt(accStartYearStr, 10) || 2026;
+    const accStartMonth = (parseInt(accStartMonthStr, 10) || 9) - 1; // 0-indexed (যেমন সেপ্টেম্বর = ৮)
 
     studentsList.forEach((std) => {
-      // শিক্ষার্থীর হিসাব বছর শুরুর জানুয়ারি থেকে বর্তমান মাস পর্যন্ত
-      const startYear = currentYear;
-      const startMonth = 0; // জানুয়ারি
+      const candidateIds = [
+        String(std.id || '').trim(),
+        String(std.admissionNo || '').trim(),
+        String(std.rollNo || '').trim(),
+      ].filter(Boolean);
 
-      const studentPayments = payments.filter((p) => p.studentId === std.id);
+      const studentPayments = payments.filter((p) => {
+        const pId = String(p.studentId || '').trim();
+        return candidateIds.includes(pId);
+      });
+
       const paidMonthsSet = new Set<string>();
 
       studentPayments.forEach((p) => {
@@ -264,12 +401,23 @@ export default function FeesPage() {
       const paidMonthsList: string[] = [];
       const runningMonths: RunningMonthStatus[] = [];
 
-      // জানুয়ারি থেকে চলতি মাস পর্যন্ত প্রতি মাসের স্ট্যাটাস
-      let y = startYear;
-      let m = startMonth;
+      // এই নির্বাচিত বছরের শুরু ও শেষ মাস নির্ধারণ
+      let startMonth = 0;
+      if (selectedYear === accStartYear) {
+        startMonth = accStartMonth; // যেমন ২০২৬ এ সেপ্টেম্বর = ৮
+      } else if (selectedYear < accStartYear) {
+        startMonth = 12; // শুরুর আগের বছর হলে কোনো মাস পড়বে না
+      }
 
-      while (y < currentYear || (y === currentYear && m <= currentMonthNum)) {
-        const monthStr = `${y}-${String(m + 1).padStart(2, '0')}`;
+      let endMonth = 11;
+      if (selectedYear === currentYear) {
+        endMonth = currentMonthNum; // চলতি মাস পর্যন্ত (যেমন সেপ্টেম্বর = ৮)
+      } else if (selectedYear > currentYear) {
+        endMonth = -1; // ভবিষ্যৎ বছর এখনও শুরু হয়নি
+      }
+
+      for (let m = startMonth; m <= endMonth; m++) {
+        const monthStr = `${selectedYear}-${String(m + 1).padStart(2, '0')}`;
         const isPaid = paidMonthsSet.has(monthStr);
 
         if (isPaid) {
@@ -283,24 +431,53 @@ export default function FeesPage() {
           label: formatMonthBengali(monthStr),
           isPaid,
         });
-
-        m++;
-        if (m > 11) {
-          m = 0;
-          y++;
-        }
       }
 
       const monthlyFee = Number(std.monthlyFee) || 0;
-      const totalExpectedFee = runningMonths.length * monthlyFee;
-      const totalPaidAmount = studentPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
-      const totalDueAmount = Math.max(0, totalExpectedFee - totalPaidAmount);
+      const currentYearDueAmount = unpaidMonths.length * monthlyFee;
 
-      const firstUnpaid = unpaidMonths.length > 0 ? formatMonthBengali(unpaidMonths[0]) : undefined;
+      // পূর্ববর্তী বছরের বকেয়া হিসাব (যদি নির্বাচিত বছর শুরুর বছরের পরে হয়, যেমন ২০২৭)
+      let previousYearDueAmount = 0;
+      const previousYearUnpaidMonths: string[] = [];
+      if (selectedYear > accStartYear) {
+        for (let py = accStartYear; py < selectedYear; py++) {
+          const pyStartMonth = py === accStartYear ? accStartMonth : 0;
+          const pyEndMonth = py === currentYear ? currentMonthNum : 11;
+          for (let pm = pyStartMonth; pm <= pyEndMonth; pm++) {
+            const pyMonthStr = `${py}-${String(pm + 1).padStart(2, '0')}`;
+            if (!paidMonthsSet.has(pyMonthStr)) {
+              previousYearUnpaidMonths.push(pyMonthStr);
+            }
+          }
+        }
+        const grossPrevDue = previousYearUnpaidMonths.length * monthlyFee;
+        const prevPaidAmount = studentPayments
+          .filter((p) => {
+            const fType = p.feeType || p.feeTypeId || '';
+            const m = normalizeMonthKey(p.month, p.paymentDate);
+            return fType.includes('বকেয়া') || (m && parseInt(m.slice(0, 4), 10) < selectedYear);
+          })
+          .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        previousYearDueAmount = Math.max(0, grossPrevDue - prevPaidAmount);
+      }
+
+      const totalDueAmount = currentYearDueAmount + previousYearDueAmount;
+      const totalDueMonths = unpaidMonths.length + previousYearUnpaidMonths.length;
+
+      // মোট পরিশোধিত অংক (চলতি সেশনে)
+      const totalPaidAmount = studentPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      const totalExpectedFee = (runningMonths.length * monthlyFee) + (previousYearUnpaidMonths.length * monthlyFee);
+
+      const firstUnpaid =
+        previousYearUnpaidMonths.length > 0
+          ? formatMonthBengali(previousYearUnpaidMonths[0])
+          : unpaidMonths.length > 0
+          ? formatMonthBengali(unpaidMonths[0])
+          : undefined;
 
       summaryMap.set(std.id, {
         student: std,
-        totalDueMonths: unpaidMonths.length,
+        totalDueMonths,
         unpaidMonths,
         paidMonths: paidMonthsList,
         runningMonths,
@@ -309,31 +486,37 @@ export default function FeesPage() {
         totalDueAmount,
         payments: studentPayments,
         firstUnpaidMonthLabel: firstUnpaid,
+        previousYearDueAmount,
+        currentYearDueAmount,
       });
     });
 
     return summaryMap;
-  }, [studentsList, payments]);
+  }, [studentsList, payments, selectedYear, accountingStartMonth, currentYear, currentMonthNum]);
 
-  // ৩. ড্যাশবোর্ড পরিসংখ্যান মেট্রিক্স
+  // ৩. ড্যাশবোর্ড পরিসংখ্যান মেট্রিক্স (শিক্ষার্থী তালিকা থেকে শতভাগ সামঞ্জস্যপূর্ণ)
   const metrics = useMemo(() => {
     if (timeScope === 'current_month') {
-      // চলতি মাসের জন্য স্পেসিফিক পেইড স্টুডেন্ট চেক
-      const paidStudentIds = new Set<string>();
       let paidTotalAmount = 0;
+      let dueTotalAmount = 0;
+      let paidCount = 0;
+      let dueCount = 0;
 
-      payments.forEach((p) => {
-        const norm = normalizeMonthKey(p.month, p.paymentDate);
-        if (norm === currentMonthKey) {
-          paidStudentIds.add(p.studentId);
-          paidTotalAmount += Number(p.amount) || 0;
+      studentsList.forEach((std) => {
+        const info = studentsDueSummary.get(std.id);
+        const isPaidCurrent = info ? info.paidMonths.includes(currentMonthKey) : false;
+
+        if (isPaidCurrent) {
+          paidCount++;
+          const paidThisMonth = (info?.payments || [])
+            .filter((p) => normalizeMonthKey(p.month, p.paymentDate) === currentMonthKey)
+            .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+          paidTotalAmount += paidThisMonth || (Number(std.monthlyFee) || 0);
+        } else {
+          dueCount++;
+          dueTotalAmount += Number(std.monthlyFee) || 0;
         }
       });
-
-      const paidCount = paidStudentIds.size;
-      const dueStudents = studentsList.filter((s) => !paidStudentIds.has(s.id));
-      const dueCount = dueStudents.length;
-      const dueTotalAmount = dueStudents.reduce((sum, s) => sum + (Number(s.monthlyFee) || 0), 0);
 
       return {
         paidTotalAmount,
@@ -344,8 +527,8 @@ export default function FeesPage() {
     } else {
       let paidTotalAmount = 0;
       let dueTotalAmount = 0;
-      let dueCount = 0;
       let paidCount = 0;
+      let dueCount = 0;
 
       studentsDueSummary.forEach((info) => {
         paidTotalAmount += info.totalPaidAmount;
@@ -364,7 +547,7 @@ export default function FeesPage() {
         dueCount,
       };
     }
-  }, [timeScope, payments, studentsList, studentsDueSummary, currentMonthKey]);
+  }, [timeScope, studentsList, studentsDueSummary, currentMonthKey]);
 
   // ৪. বিভাগ অনুযায়ী বকেয়া শিক্ষার্থীর সংখ্যা
   const dueCountByClass = useMemo(() => {
@@ -468,6 +651,39 @@ export default function FeesPage() {
         {/* বডি স্ক্রল */}
         <main className="flex-1 overflow-y-auto overscroll-contain no-scrollbar p-4 space-y-3.5">
 
+          {/* সেশন / শিক্ষাবর্ষ ও হিসাব শুরুর মাস বার */}
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-500">শিক্ষাবর্ষ:</span>
+              <div className="flex items-center bg-white rounded-xl border border-[#D9E7E0] p-0.5 shadow-2xs">
+                {[currentYear, currentYear + 1].map((yr) => (
+                  <button
+                    key={yr}
+                    type="button"
+                    onClick={() => setSelectedYear(yr)}
+                    className={`px-2.5 py-0.5 rounded-lg text-xs font-black transition font-sans ${
+                      selectedYear === yr
+                        ? 'bg-[#008955] text-white shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {yr}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsSettingsOpen(true)}
+              className="inline-flex items-center gap-1.5 bg-[#E7F6ED] hover:bg-[#D5EFE2] text-[#008955] font-bold px-2.5 py-1 rounded-xl border border-[#BBE3D3] transition text-[10px]"
+              title="হিসাব শুরুর মাস পরিবর্তন করুন"
+            >
+              <span>শুরু: {formatMonthBengali(accountingStartMonth)}</span>
+              <SlidersHorizontal size={11} />
+            </button>
+          </div>
+
           {/* টাইমস্কোপ ফিল্টার */}
           <div className="flex items-center justify-between rounded-2xl bg-[#E8F4EE] p-1 border border-[#CCE8DA]">
             <button
@@ -492,7 +708,7 @@ export default function FeesPage() {
               }`}
             >
               <Layers size={13} />
-              <span>জানুয়ারি হতে আজ পর্যন্ত</span>
+              <span>{selectedYear === 2026 ? 'সেপ্টেম্বর হতে হিসাব' : `${selectedYear} শিক্ষাবর্ষের হিসাব`}</span>
             </button>
           </div>
 
@@ -506,7 +722,7 @@ export default function FeesPage() {
             >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-slate-500">
-                  {timeScope === 'current_month' ? 'চলতি মাসে আদায়' : 'মোট আদায়কৃত ফি'}
+                  {timeScope === 'current_month' ? 'চলতি মাসে আদায়' : `${selectedYear} সেশনে মোট আদায়`}
                 </span>
                 <span className="p-1 rounded-lg bg-[#E7F6ED] text-[#008955]">
                   <CircleDollarSign size={14} />
@@ -530,7 +746,7 @@ export default function FeesPage() {
             >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-slate-500">
-                  {timeScope === 'current_month' ? 'চলতি মাসে বকেয়া' : 'মোট বকেয়া ফি'}
+                  {timeScope === 'current_month' ? 'চলতি মাসে বকেয়া' : `${selectedYear} সেশনে মোট বকেয়া`}
                 </span>
                 <span className="p-1 rounded-lg bg-rose-50 text-rose-600">
                   <AlertCircle size={14} />
@@ -821,11 +1037,24 @@ export default function FeesPage() {
                 </div>
               </div>
 
-              {/* চলতি বছরের মাসসমূহের স্ট্যাটাস গ্রিড (পরিশোধিত হলে গ্রিন, বকেয়া হলে রেড) */}
+              {/* পূর্ববর্তী শিক্ষাবর্ষের জের বকেয়া যদি থাকে */}
+              {selectedStudentHistory.previousYearDueAmount && selectedStudentHistory.previousYearDueAmount > 0 ? (
+                <div className="mb-2.5 p-2.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between text-[11px]">
+                  <div>
+                    <span className="font-bold text-amber-900 block">পূর্ববর্তী শিক্ষাবর্ষের জের বকেয়া:</span>
+                    <span className="text-[10px] text-amber-700">চলতি বছরের ফির সাথে যোগ করা হয়েছে</span>
+                  </div>
+                  <span className="font-black text-amber-800 font-sans text-xs">
+                    ৳ {selectedStudentHistory.previousYearDueAmount.toLocaleString('en-US')}
+                  </span>
+                </div>
+              ) : null}
+
+              {/* নির্বাচিত বছরের মাসসমূহের স্ট্যাটাস গ্রিড (পরিশোধিত হলে গ্রিন, বকেয়া হলে রেড) */}
               <div className="mb-2.5 p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
                 <span className="text-[10.5px] font-bold text-slate-700 flex items-center gap-1 mb-2">
                   <Layers size={13} className="text-[#008955]" />
-                  <span>চলতি বছরের মাসভিত্তিক বেতন অবস্থা:</span>
+                  <span>{selectedYear} সেশনের মাসভিত্তিক বেতন অবস্থা:</span>
                 </span>
 
                 <div className="grid grid-cols-2 gap-1.5">
@@ -864,9 +1093,22 @@ export default function FeesPage() {
                           {item.paymentDate} • {item.paymentMethod === 'cash' ? 'নগদ' : item.paymentMethod}
                         </p>
                       </div>
-                      <span className="text-xs font-black text-[#008955] font-sans">
-                        +৳ {item.amount?.toLocaleString('en-US')}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-[#008955] font-sans">
+                          +৳ {item.amount?.toLocaleString('en-US')}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePayment(item.id);
+                          }}
+                          className="h-6 w-6 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 flex items-center justify-center transition active:scale-90"
+                          title="এই জমার রেকর্ডটি মুছে ফেলুন"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -874,6 +1116,83 @@ export default function FeesPage() {
                 )}
               </div>
 
+            </div>
+          </div>
+        )}
+
+        {/* ৮. অ্যাকাউন্টিং সেশন ও শুরুর মাস সেটিং মোডাল */}
+        {isSettingsOpen && (
+          <div
+            onClick={() => setIsSettingsOpen(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 font-hind animate-in fade-in"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-[340px] rounded-3xl bg-white p-5 shadow-2xl border border-slate-200"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-xl bg-[#E7F6ED] text-[#008955] flex items-center justify-center">
+                    <SlidersHorizontal size={16} />
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-800">অ্যাকাউন্টিং শুরুর মাস</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="h-7 w-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="py-3 space-y-2">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  যে মাস থেকে এই অ্যাপে নিয়মিত ফি আদায় হিসাব শুরু করতে চান তা নির্বাচন করুন। এর পূর্বের মাসগুলোর কৃত্রিম বকেয়া বাদ রাখা হবে:
+                </p>
+
+                <div className="space-y-1.5 pt-1">
+                  {[
+                    { key: '2026-09', label: 'সেপ্টেম্বর ২০২৬ (অ্যাপ চালুর মাস - প্রস্তাবিত)' },
+                    { key: '2026-10', label: 'অক্টোবর ২০২৬' },
+                    { key: '2026-08', label: 'আগস্ট ২০২৬' },
+                    { key: '2026-01', label: 'জানুয়ারি ২০২৬ (পুরো বছর)' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => {
+                        setAccountingStartMonth(opt.key);
+                        if (typeof window !== 'undefined') {
+                          localStorage.setItem('madrasa_fee_accounting_start', opt.key);
+                        }
+                        setIsSettingsOpen(false);
+                        setSuccessToast(`হিসাব শুরুর মাস ${opt.label.split(' ')[0]} সেট করা হয়েছে!`);
+                        setTimeout(() => setSuccessToast(''), 3000);
+                      }}
+                      className={`w-full text-left p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition ${
+                        accountingStartMonth === opt.key
+                          ? 'bg-[#E7F6ED] border-[#008955] text-[#008955]'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {accountingStartMonth === opt.key && <Check size={14} className="text-[#008955]" />}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 mt-2">
+                  <button
+                    type="button"
+                    onClick={handleClearAllDemoData}
+                    className="w-full py-2.5 px-3 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                    <span>পূর্বের সকল ডেমো/টেস্ট ফি মুছে ফেলুন</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

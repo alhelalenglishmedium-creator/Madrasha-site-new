@@ -41,16 +41,18 @@ export function FeeCollectionModal({
   const currentYear = new Date().getFullYear();
   const currentMonthIdx = new Date().getMonth();
 
-  // ১২ মাসের ডায়নামিক অপশন তালিকা তৈরি
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+
+  // নির্বাচিত বছরের ১২ মাসের ডায়নামিক অপশন তালিকা তৈরি
   const monthOptions = useMemo(() => {
     return BENGALI_MONTHS.map((m, idx) => {
-      const monthKey = `${currentYear}-${String(idx + 1).padStart(2, '0')}`;
-      const label = `${m} ${toBengaliNumber(currentYear)}`;
+      const monthKey = `${selectedYear}-${String(idx + 1).padStart(2, '0')}`;
+      const label = `${m} ${toBengaliNumber(selectedYear)}`;
       return { key: monthKey, label };
     });
-  }, [currentYear]);
+  }, [selectedYear]);
 
-  const defaultMonthLabel = `${BENGALI_MONTHS[currentMonthIdx]} ${toBengaliNumber(currentYear)}`;
+  const defaultMonthLabel = `${BENGALI_MONTHS[currentMonthIdx]} ${toBengaliNumber(selectedYear)}`;
 
   const [searchUid, setSearchUid] = useState('');
   const [activeStudent, setActiveStudent] = useState<Student | null>(null);
@@ -77,14 +79,22 @@ export function FeeCollectionModal({
     }
 
     if (initialMonth) {
+      // যদি initialMonth এ সাল উল্লেখ থাকে (যেমন ২০২৭ বা 2027)
+      const yrMatch = initialMonth.match(/(\d{4})|[২০-২৯]{4}/);
+      if (yrMatch) {
+        const engYr = parseInt(yrMatch[0].replace(/[০-৯]/g, (d) => '0123456789'['০১২৩৪৫৬৭৮৯'.indexOf(d)]), 10);
+        if (!isNaN(engYr)) {
+          setSelectedYear(engYr);
+        }
+      }
       setMonth(initialMonth);
     } else {
-      setMonth(defaultMonthLabel);
+      setMonth(`${BENGALI_MONTHS[currentMonthIdx]} ${toBengaliNumber(selectedYear)}`);
     }
 
     setErrorMessage('');
     setSearchError('');
-  }, [student, isOpen, initialMonth, defaultMonthLabel]);
+  }, [student, isOpen, initialMonth, currentMonthIdx, selectedYear]);
 
   // শিক্ষার্থী সার্চ
   const handleSearchStudent = () => {
@@ -277,6 +287,8 @@ export function FeeCollectionModal({
                 className="w-full rounded-2xl border border-[#D9E7E0] bg-white px-3 py-2.5 text-xs font-bold text-[#1F2937] focus:border-[#008955] focus:outline-none shadow-2xs cursor-pointer"
               >
                 <option value="মাসিক বেতন">মাসিক বেতন</option>
+                <option value="পূর্বের বকেয়া">পূর্বের বকেয়া (Previous Dues)</option>
+                <option value="সেশন / নতুন শিক্ষাবর্ষ ফি">সেশন / নতুন শিক্ষাবর্ষ ফি</option>
                 <option value="ভর্তি ফি">ভর্তি ফি</option>
                 <option value="খাবার/বোর্ডিং ফি">খাবার/বোর্ডিং ফি</option>
                 <option value="পরীক্ষা ফি">পরীক্ষা ফি</option>
@@ -286,9 +298,30 @@ export function FeeCollectionModal({
             </div>
 
             <div>
-              <label className="text-[11px] font-bold text-[#374151] block mb-1 px-1">
-                মাস নির্বাচন করুন *
-              </label>
+              <div className="flex items-center justify-between mb-1 px-1">
+                <label className="text-[11px] font-bold text-[#374151]">
+                  মাস ও বছর *
+                </label>
+                <div className="flex items-center gap-1 font-sans">
+                  {[currentYear, currentYear + 1].map((yr) => (
+                    <button
+                      key={yr}
+                      type="button"
+                      onClick={() => {
+                        setSelectedYear(yr);
+                        setMonth(`${BENGALI_MONTHS[currentMonthIdx]} ${toBengaliNumber(yr)}`);
+                      }}
+                      className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
+                        selectedYear === yr
+                          ? 'bg-[#008955] text-white shadow-2xs'
+                          : 'bg-[#E7F6ED] text-[#008955] hover:bg-[#D5EFE2]'
+                      }`}
+                    >
+                      {yr}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <select
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}

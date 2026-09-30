@@ -149,27 +149,34 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
           console.warn('Network error (student_fees):', e?.message || e);
         }
 
-        // ৩. লোকাল IndexedDB ব্যাকআপ থেকে লোড (যদি সুপাবেস অফলাইন থাকে)
-        if (records.length === 0) {
-          try {
-            const localPayments = await localDb.feePayments.toArray();
-            records = localPayments
-              .filter((p) => candidateIds.includes(String(p.studentId).trim()))
-              .map((p: any) => ({
-                id: p.id,
-                studentId: p.studentId,
-                amount: Number(p.amount || 0),
-                month: p.month || 'চলতি মাস',
-                feeType: p.feeType || p.feeTypeId || p.feeCategory || 'মাসিক বেতন',
-                paymentDate: p.paymentDate || new Date().toISOString().split('T')[0],
-                paymentMethod: p.paymentMethod === 'cash' ? 'নগদ ক্যাশ' : p.paymentMethod || 'নগদ ক্যাশ',
-                receiptNo: p.receiptNo || `REC-${p.id.slice(-6)}`,
-                note: p.notes || p.note || '',
-                createdAt: p.createdAt,
-              }));
-          } catch (e) {
-            console.warn('Local Fee Fetch Warning:', e);
-          }
+        // ৩. লোকাল IndexedDB ব্যাকআপ থেকে লোড ও মার্জ
+        try {
+          const localPayments = await localDb.feePayments.toArray();
+          const matchedLocal: FeeRecord[] = localPayments
+            .filter((p) =>
+              candidateIds.some((cid) => String(p.studentId || '').trim().toLowerCase() === cid.toLowerCase())
+            )
+            .map((p: any) => ({
+              id: String(p.id),
+              studentId: String(p.studentId),
+              amount: Number(p.amount || 0),
+              month: p.month || 'চলতি মাস',
+              feeType: p.feeType || p.feeTypeId || p.feeCategory || 'মাসিক বেতন',
+              paymentDate: p.paymentDate ? String(p.paymentDate).split('T')[0] : new Date().toISOString().split('T')[0],
+              paymentMethod: p.paymentMethod === 'cash' ? 'নগদ ক্যাশ' : p.paymentMethod || 'নগদ ক্যাশ',
+              receiptNo: p.receiptNo || `REC-${String(p.id).slice(-6)}`,
+              note: p.notes || p.note || '',
+              createdAt: p.createdAt,
+            }));
+
+          const map = new Map<string, FeeRecord>();
+          [...records, ...matchedLocal].forEach((r) => {
+            const key = r.receiptNo || r.id;
+            map.set(key, r);
+          });
+          records = Array.from(map.values());
+        } catch (e) {
+          console.warn('Local Fee Fetch Warning:', e);
         }
 
         setFeeRecords(records);
@@ -213,7 +220,9 @@ export function StudentFeeTab({ student }: StudentFeeTabProps) {
         mStr.includes(currentMonthISO) ||
         mStr.includes(currentBn.toLowerCase()) ||
         mStr.includes(currentEn) ||
-        (mStr.includes(currentYear) && mStr.includes(String(currentMonthNum)))
+        mStr.includes('চলতি মাস') ||
+        mStr.includes('চলতি') ||
+        (mStr.includes(currentYear) && (mStr.includes(String(currentMonthNum)) || mStr.includes(String(currentMonthNum).padStart(2, '0'))))
       );
     });
   }, [feeRecords, currentMonthISO]);

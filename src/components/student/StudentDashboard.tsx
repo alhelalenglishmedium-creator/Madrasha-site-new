@@ -352,18 +352,32 @@ export function StudentDashboard() {
               )
             );
 
-            const { data: feeData, error: feeErr } = await supabase
-              .from('student_fees')
-              .select('*')
-              .in('student_id', candidateIds);
+            let supaFees: any[] = [];
+            try {
+              const { data: feeData, error: feeErr } = await supabase
+                .from('student_fees')
+                .select('*')
+                .in('student_id', candidateIds);
+              if (!feeErr && feeData) {
+                supaFees = feeData;
+              }
+            } catch (e) {}
 
-            let allFees: any[] = [];
-            if (!feeErr && feeData && feeData.length > 0) {
-              allFees = feeData;
-            } else {
-              const localFee = await localDb.feePayments.toArray();
-              allFees = localFee.filter((p) => candidateIds.includes(String(p.studentId).trim()));
-            }
+            let localFees: any[] = [];
+            try {
+              const allLocal = await localDb.feePayments.toArray();
+              localFees = allLocal.filter((p) =>
+                candidateIds.some((cid) => String(p.studentId || '').trim().toLowerCase() === cid.toLowerCase())
+              );
+            } catch (e) {}
+
+            // Merge & deduplicate
+            const combinedMap = new Map<string, any>();
+            [...supaFees, ...localFees].forEach((item) => {
+              const key = item.receipt_no || item.receiptNo || item.id || JSON.stringify(item);
+              combinedMap.set(key, item);
+            });
+            const allFees = Array.from(combinedMap.values());
 
             const now = new Date();
             const currentMonthISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -383,7 +397,9 @@ export function StudentDashboard() {
                 mStr.includes(currentMonthISO) ||
                 mStr.includes(currentMonthBn.toLowerCase()) ||
                 mStr.includes(currentMonthEn) ||
-                (mStr.includes(currentYear) && mStr.includes(String(currentMonthNum)))
+                mStr.includes('চলতি মাস') ||
+                mStr.includes('চলতি') ||
+                (mStr.includes(currentYear) && (mStr.includes(String(currentMonthNum)) || mStr.includes(String(currentMonthNum).padStart(2, '0'))))
               );
             });
 
