@@ -517,7 +517,13 @@ export function StudentDashboard() {
                 String(currentStudent?.id || '').trim(),
                 String(currentStudent?.admissionNo || '').trim(),
                 String((currentStudent as any)?.identifier || '').trim(),
+                String(user?.identifier || '').trim(),
+                String(user?.id || '').trim(),
                 String(currentStudent?.rollNo || '').trim(),
+                String(user?.extraData?.rollNo || '').trim(),
+                ...(typeof window !== 'undefined'
+                  ? [String(localStorage.getItem('madrasa_active_uid') || '').trim()]
+                  : []),
               ].filter(Boolean)
             )
           );
@@ -554,6 +560,42 @@ export function StudentDashboard() {
             console.warn('Exam query warning:', fetchErr);
           }
 
+          // ৩. অফলাইন ও লোকালস্টোরেজ ক্যাশ রিড
+          if (typeof window !== 'undefined') {
+            try {
+              const cachedList = localStorage.getItem('madrasa_exam_results');
+              if (cachedList) {
+                const parsed = JSON.parse(cachedList);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  const existingIds = new Set(classResults.map((r: any) => String(r.id || `${r.student_id}_${r.exam_name}`)));
+                  for (const r of parsed) {
+                    const key = String(r.id || `${r.student_id}_${r.exam_name}`);
+                    if (!existingIds.has(key)) {
+                      classResults.push(r);
+                      existingIds.add(key);
+                    }
+                  }
+                }
+              }
+            } catch (e) {}
+
+            for (const cid of candidateIds) {
+              try {
+                const singleCache = localStorage.getItem(`student_result_${cid}`);
+                if (singleCache) {
+                  const parsed = JSON.parse(singleCache);
+                  if (parsed && (parsed.subjects || parsed.total_marks)) {
+                    const existingIds = new Set(classResults.map((r: any) => String(r.id || `${r.student_id}_${r.exam_name}`)));
+                    const key = String(parsed.id || `${parsed.student_id}_${parsed.exam_name}`);
+                    if (!existingIds.has(key)) {
+                      classResults.push(parsed);
+                    }
+                  }
+                }
+              } catch (e) {}
+            }
+          }
+
           if (classResults.length > 0) {
             const examsByName: { [examName: string]: any[] } = {};
             classResults.forEach((rec: any) => {
@@ -563,6 +605,7 @@ export function StudentDashboard() {
             });
 
             const studentExams: ExamResult[] = [];
+            const candidateIdsLower = candidateIds.map((c) => c.toLowerCase());
 
             Object.keys(examsByName).forEach((eName, idx) => {
               const sorted = examsByName[eName].sort(
@@ -570,10 +613,13 @@ export function StudentDashboard() {
               );
 
               sorted.forEach((rec, rankIdx) => {
-                if (candidateIds.includes(String(rec.student_id).trim())) {
+                const recSid = String(rec.student_id || '').trim().toLowerCase();
+                const isMatch = candidateIdsLower.includes(recSid);
+
+                if (isMatch) {
                   const percentage = Number(rec.percentage || (rec.total_marks ? (rec.obtained_marks / rec.total_marks) * 100 : 0));
                   studentExams.push({
-                    id: rec.id,
+                    id: rec.id || `exam_${idx}_${rankIdx}`,
                     studentId: rec.student_id,
                     className: rec.class_name || activeClassName,
                     examName: rec.exam_name || eName,
@@ -612,7 +658,15 @@ export function StudentDashboard() {
     };
 
     loadStudentData();
-  }, [todayStr, currentMonthISO, user, user?.identifier]);
+
+    if (typeof window !== 'undefined') {
+      const handleResultUpdated = () => {
+        loadStudentData();
+      };
+      window.addEventListener('exam_results_updated', handleResultUpdated);
+      return () => window.removeEventListener('exam_results_updated', handleResultUpdated);
+    }
+  }, [todayStr, currentMonthISO, user, user?.identifier, activeTab]);
 
   const displayStudent: Student = useMemo(() => {
     if (student) return student;

@@ -324,43 +324,74 @@ export function AdminResultModal({
         gpa = 2.0;
       }
 
+      const targetId = String(activeStudent.admissionNo || activeStudent.id).trim();
+      const altId = String(activeStudent.id).trim();
+
       const payload = {
-        student_id: activeStudent.id,
+        student_id: targetId,
         class_name: activeStudent.className || 'সাধারণ',
-        institution_type: selectedInstType,
         exam_name: examName,
-        year: '২০২৬',
-        subjects: subjectBreakdown,
-        total_marks: totalPossibleMarks,
+        subject: currentSubjects[0] || 'সকল বিষয়',
+        marks: totalObtained,
         obtained_marks: totalObtained,
+        total_marks: totalPossibleMarks,
         percentage,
         grade,
-        gpa,
-        published_at: new Date().toISOString(),
+        year: '২০২৬',
+        subjects: subjectBreakdown,
       };
 
-      // ১. Supabase ক্লাউডে সংরক্ষণ
+      // ১. Supabase ক্লাউডে সংরক্ষণ (বিদ্যমান রেকর্ড থাকলে আপডেট, না থাকলে ইনসার্ট)
       try {
-        const { error } = await supabase.from('exam_results').upsert(payload);
-        if (error) {
-          console.warn('Exam result cloud save warning:', error.message);
+        const { data: existingRows } = await supabase
+          .from('exam_results')
+          .select('id')
+          .or(`student_id.eq.${targetId},student_id.eq.${altId}`)
+          .eq('exam_name', examName);
+
+        if (existingRows && existingRows.length > 0) {
+          const { error: updateErr } = await supabase
+            .from('exam_results')
+            .update(payload)
+            .eq('id', existingRows[0].id);
+
+          if (updateErr) {
+            console.error('Exam result cloud update error:', updateErr.message);
+            alert('ক্লাউডে আপডেট ত্রুটি: ' + updateErr.message);
+          }
+        } else {
+          const { error: insertErr } = await supabase
+            .from('exam_results')
+            .insert([payload]);
+
+          if (insertErr) {
+            console.error('Exam result cloud insert error:', insertErr.message);
+            alert('ক্লাউডে সংরক্ষণ ত্রুটি: ' + insertErr.message);
+          }
         }
-      } catch (e) {
-        console.warn('Cloud save error:', e);
+      } catch (e: any) {
+        console.error('Cloud save exception:', e?.message || e);
       }
 
       // ২. লোকালস্টোরেজে অফলাইন ব্যাকআপ
       try {
-        const storageKey = `student_result_${activeStudent.id}`;
-        localStorage.setItem(storageKey, JSON.stringify(payload));
+        const itemToSave = { ...payload, id: `res_${targetId}_${Date.now()}` };
+        localStorage.setItem(`student_result_${targetId}`, JSON.stringify(itemToSave));
+        if (altId && altId !== targetId) {
+          localStorage.setItem(`student_result_${altId}`, JSON.stringify(itemToSave));
+        }
 
         const listKey = 'madrasa_exam_results';
         const existingList = localStorage.getItem(listKey);
         const parsed = existingList ? JSON.parse(existingList) : [];
         const filtered = parsed.filter(
-          (r: any) => !(r.student_id === activeStudent.id && r.exam_name === examName)
+          (r: any) =>
+            !(
+              (String(r.student_id).trim() === targetId || String(r.student_id).trim() === altId) &&
+              r.exam_name === examName
+            )
         );
-        localStorage.setItem(listKey, JSON.stringify([...filtered, payload]));
+        localStorage.setItem(listKey, JSON.stringify([...filtered, itemToSave]));
 
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new Event('exam_results_updated'));
