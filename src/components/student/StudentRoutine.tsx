@@ -22,9 +22,10 @@ interface RoutinePeriod {
 
 interface StudentRoutineProps {
   classNameProp?: string;
+  isSchool?: boolean;
 }
 
-export function StudentRoutine({ classNameProp = 'হিফজুল কুরআন' }: StudentRoutineProps) {
+export function StudentRoutine({ classNameProp = 'হিফজুল কুরআন', isSchool = false }: StudentRoutineProps) {
   const [routines, setRoutines] = useState<RoutinePeriod[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedDay, setSelectedDay] = useState<string>('আজকের দিন');
@@ -80,7 +81,7 @@ export function StudentRoutine({ classNameProp = 'হিফজুল কুর�
             startTime: item.start_time || item.startTime || '',
             endTime: item.end_time || item.endTime || '',
             subjectName: item.subject_name || item.subjectName || item.subject || 'সাধারণ বিষয়',
-            teacherName: item.teacher_name || item.teacherName || item.teacher || 'শিক্ষক নির্ধারণ করা হয়নি',
+            teacherName: item.teacher_name || item.teacherName || item.teacher || (isSchool ? 'শিক্ষক নির্ধারণ করা হয়নি' : 'উস্তাদ নির্ধারণ করা হয়নি'),
             roomNo,
             periodName,
             cw,
@@ -158,7 +159,7 @@ export function StudentRoutine({ classNameProp = 'হিফজুল কুর�
 
               <p className="text-[10px] text-slate-500 flex items-center gap-1">
                 <User size={11} className="text-slate-400" />
-                <span>শিক্ষক: <strong className="text-slate-700">{period.teacherName}</strong></span>
+                <span>{isSchool ? 'শিক্ষক' : 'উস্তাদ'}: <strong className="text-slate-700">{period.teacherName}</strong></span>
                 {period.roomNo && (
                   <>
                     <span>•</span>
@@ -196,7 +197,7 @@ export function StudentRoutine({ classNameProp = 'হিফজুল কুর�
           <div>
             <h4 className="text-xs font-bold text-slate-800">কোনো ক্লাস রুটিন যুক্ত করা হয়নি</h4>
             <p className="text-[10px] text-slate-500 max-w-xs mx-auto mt-0.5 leading-relaxed">
-              অ্যাডমিন প্যানেল থেকে <span className="font-bold text-slate-700">{classNameProp}</span> বিভাগের জন্য রুটিন আপলোড করা হলে এখানে প্রদর্শিত হবে।
+              অ্যাডমিন প্যানেল থেকে <span className="font-bold text-slate-700">{classNameProp}</span> {isSchool ? 'ক্লাসের' : 'বিভাগের'} জন্য রুটিন আপলোড করা হলে এখানে প্রদর্শিত হবে।
             </p>
           </div>
         </div>

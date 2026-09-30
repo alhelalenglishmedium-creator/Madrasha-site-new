@@ -31,8 +31,9 @@ export function DashboardHeader({
   const { user } = useAuth?.() || { user: null };
   const { currentInstitution, setInstitution, allInstitutions } = useInstitution();
 
-  // শুধুমাত্র অ্যাডমিন রোল হলে ড্রপডাউন সুইচার খোলা যাবে
+  // প্রতিষ্ঠান পরিবর্তন সুবিধা (অ্যাডমিন বা একাধিক প্রতিষ্ঠান উপলব্ধ থাকলে)
   const isAdmin = user?.role === 'admin';
+  const canSwitch = isAdmin || allInstitutions.length > 1;
 
   const getInstitutionIcon = (type: string) => {
     if (type === 'school') return School;
@@ -62,7 +63,7 @@ export function DashboardHeader({
           </div>
 
           <div className="min-w-0 flex-1 relative">
-            {isAdmin ? (
+            {canSwitch ? (
               <button
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -123,8 +124,8 @@ export function DashboardHeader({
 
       </div>
 
-      {/* ৩. সুইচার ড্রপডাউন মেনু (শুধুমাত্র অ্যাডমিনের জন্য) */}
-      {isAdmin && isDropdownOpen && (
+      {/* ৩. সুইচার ড্রপডাউন মেনু */}
+      {canSwitch && isDropdownOpen && (
         <>
           <div
             className="fixed inset-0 z-40 bg-black/10"
@@ -133,7 +134,7 @@ export function DashboardHeader({
           <div className="absolute left-4 top-full mt-1.5 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
             <div className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 border-b border-slate-100 flex items-center gap-1">
               <Building2 size={12} className="text-[#008955]" />
-              <span>প্রতিষ্ঠান নির্বাচন করুন (Admin Switcher)</span>
+              <span>প্রতিষ্ঠান নির্বাচন করুন</span>
             </div>
 
             <div className="mt-1 space-y-1">

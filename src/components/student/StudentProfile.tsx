@@ -169,7 +169,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
           <div className="space-y-0.5">
             <p className="text-slate-500 flex items-center gap-1">
-              <User className="w-3 h-3 text-slate-400" /> অভিভাবক: <span className="font-bold text-slate-700">{student.fatherName || 'তথ্য নেই'}</span>
+              <User className="w-3 h-3 text-slate-400" /> অভিভাবক: <span className="font-bold text-slate-700">{student.fatherName || (isSchool ? 'তথ্য নেই' : 'মাওলানা আব্দুর রহমান')}</span>
             </p>
             <p className="text-slate-500 flex items-center gap-1">
               <Phone className="w-3 h-3 text-slate-400" /> ফোন: <span className="font-bold font-sans text-slate-700">{student.phone || '01712-345678'}</span>
@@ -274,7 +274,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
 
             <div className="text-right">
               <span className={`text-lg font-black ${isSchool ? 'text-blue-700' : 'text-[#008955]'} font-sans block`}>
-                ৳ {Number(student.monthlyFee || 1000).toLocaleString('en-US')}
+                ৳ {Number(student.monthlyFee || (isSchool ? 1000 : 1500)).toLocaleString('en-US')}
               </span>
               <span className={`text-[9px] font-bold ${
                 isSchool ? 'text-blue-700 bg-blue-100/80' : 'text-emerald-700 bg-emerald-100/80'

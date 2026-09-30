@@ -195,7 +195,7 @@ export const StudentStudyView: React.FC<StudentStudyViewProps> = ({ student }) =
       )}
 
       {/* পাঠ্যসূচি ও রুটিন কম্পোনেন্ট */}
-      <StudentRoutine classNameProp={student.className} />
+      <StudentRoutine classNameProp={student.className} isSchool={isSchool} />
     </div>
   );
 };

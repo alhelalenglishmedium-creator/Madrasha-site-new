@@ -618,20 +618,22 @@ export function StudentDashboard() {
     if (student) return student;
 
     const activeUid = user?.identifier || (typeof window !== 'undefined' ? localStorage.getItem('madrasa_active_uid') : null);
+    const targetType = (user?.extraData?.institutionType as any) || currentInstitution?.type || 'madrasa';
+    const isSchoolTarget = targetType === 'school';
 
     return {
-      id: activeUid || 'STU-101',
-      admissionNo: activeUid || 'STU-101',
-      fullName: user?.name || 'শিক্ষার্থী',
-      fullNameBangla: user?.name || 'শিক্ষার্থী',
-      institutionType: (user?.extraData?.institutionType as any) || currentInstitution?.type || 'madrasa',
-      className: user?.extraData?.className || 'হিফজুল কুরআন',
+      id: activeUid || (isSchoolTarget ? 'SCH-105' : 'STU-101'),
+      admissionNo: activeUid || (isSchoolTarget ? 'SCH-105' : 'STU-101'),
+      fullName: user?.name || (isSchoolTarget ? 'শিক্ষার্থী' : 'মুহাম্মাদ আব্দুল্লাহ'),
+      fullNameBangla: user?.name || (isSchoolTarget ? 'শিক্ষার্থী' : 'মুহাম্মাদ আব্দুল্লাহ'),
+      institutionType: targetType,
+      className: user?.extraData?.className || (isSchoolTarget ? 'প্লে' : 'হিফজুল কুরআন'),
       section: '',
-      rollNo: user?.extraData?.rollNo || '০১',
-      fatherName: 'তথ্য আপডেট করা হচ্ছে',
+      rollNo: user?.extraData?.rollNo || (isSchoolTarget ? '০৪' : '০১'),
+      fatherName: isSchoolTarget ? 'তথ্য নেই' : 'মাওলানা আব্দুর রহমান',
       phone: user?.phone || '',
       photoUrl: user?.avatarUrl || '',
-      monthlyFee: 1000,
+      monthlyFee: isSchoolTarget ? 1000 : 1500,
       status: 'active' as const,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -639,8 +641,11 @@ export function StudentDashboard() {
   }, [student, user, currentInstitution?.type]);
 
   const isSchool = useMemo(() => {
-    if (displayStudent.institutionType === 'school') return true;
+    const instType = displayStudent.institutionType || (displayStudent as any).institution_type;
+    if (instType === 'school') return true;
+    if (instType === 'madrasa' || instType === 'mohila_madrasa') return false;
     if (currentInstitution?.type === 'school') return true;
+    if (currentInstitution?.type === 'madrasa' || currentInstitution?.type === 'mohila_madrasa') return false;
     const cls = (displayStudent.className || '').toLowerCase();
     if (
       cls.includes('class') ||
@@ -654,15 +659,16 @@ export function StudentDashboard() {
       cls.includes('ফোর') ||
       cls.includes('ফাইভ')
     ) {
-      if (displayStudent.institutionType !== 'madrasa') return true;
+      return true;
     }
     return false;
-  }, [displayStudent.institutionType, displayStudent.className, currentInstitution?.type]);
+  }, [displayStudent.institutionType, (displayStudent as any).institution_type, displayStudent.className, currentInstitution?.type]);
 
   const studentFormattedName = useMemo(() => {
-    const raw = displayStudent.fullNameBangla || displayStudent.fullName || 'আব্দুল্লাহ মাহমুদ';
+    const raw = displayStudent.fullNameBangla || displayStudent.fullName || (isSchool ? 'শিক্ষার্থী' : 'আব্দুল্লাহ মাহমুদ');
+    if (isSchool) return raw;
     return raw.startsWith('মুহাম্মাদ') || raw.startsWith('মোহাম্মদ') ? raw : `মুহাম্মাদ ${raw}`;
-  }, [displayStudent]);
+  }, [displayStudent, isSchool]);
 
   const latestExam = useMemo(() => {
     return examResultsList.find((e) => e.isCurrent) || examResultsList[0] || null;
@@ -731,6 +737,8 @@ export function StudentDashboard() {
                 livePrayerData={livePrayerData}
                 attendanceRate={attendanceRate}
                 isFeePaidThisMonth={isFeePaidThisMonth}
+                todayRoutines={todayRoutines}
+                isTodayRoutineLoading={isTodayRoutineLoading}
               />
             )
           )}
@@ -956,6 +964,11 @@ export function StudentDashboard() {
                   <h3 className="text-sm font-bold text-slate-800 mt-2">
                     এখনো কোনো ফলাফল প্রকাশিত হয়নি
                   </h3>
+                  {!isSchool && (
+                    <p className="text-[11px] text-slate-500 max-w-xs mx-auto leading-relaxed">
+                      মাদ্রাসার অ্যাডমিন প্যানেল থেকে নম্বর এন্ট্রি সম্পন্ন হলে এই প্যানেলে আপনার বিস্তারিত মূল্যায়ন ও মেধা স্থান দেখা যাবে।
+                    </p>
+                  )}
                 </div>
               )}
             </div>
